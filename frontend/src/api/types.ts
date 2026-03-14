@@ -1,0 +1,139 @@
+export interface Recording {
+  id: string;
+  title: string;
+  description: string | null;
+  file_path: string;
+  thumbnail_path: string | null;
+  duration_seconds: number | null;
+  file_size_bytes: number | null;
+  format: string;
+  source: string;
+  bbb_meeting_id: string | null;
+  schedule_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecordingDetail extends Recording {
+  categories: Category[];
+  tags: Tag[];
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Schedule {
+  id: string;
+  title: string;
+  meeting_id: string;
+  start_time: string;
+  end_time: string | null;
+  recurrence: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  stream_url: string;
+  status: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface StatsResponse {
+  recording_count: number;
+  total_duration_seconds: number;
+  total_size_bytes: number;
+  by_source: SourceCount[];
+  by_category: CategoryCount[];
+}
+
+export interface SourceCount {
+  source: string;
+  count: number;
+}
+
+export interface CategoryCount {
+  category_name: string;
+  count: number;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface UpdateRecordingRequest {
+  title?: string;
+  description?: string;
+}
+
+export interface AssignIdsRequest {
+  ids: string[];
+}
+
+export interface CreateScheduleRequest {
+  title: string;
+  stream_url: string;
+  start_time: string;
+  end_time?: string;
+  meeting_id?: string;
+  recurrence?: string;
+}
+
+export interface UpdateScheduleRequest {
+  title?: string;
+  stream_url?: string;
+  start_time?: string;
+  end_time?: string;
+  meeting_id?: string;
+  recurrence?: string;
+  enabled?: boolean;
+}
+
+export interface CreateCategoryRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateCategoryRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface CreateTagRequest {
+  name: string;
+}
+
+export interface ImportUrlRequest {
+  url: string;
+  title?: string;
+}
+
+export interface RecordingListParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  source?: string;
+  category_id?: string;
+  tag_id?: string;
+}
+
+export interface PaginationParams {
+  page?: number;
+  per_page?: number;
+}

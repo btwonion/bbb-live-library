@@ -1,0 +1,18 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+frontend_dir = "frontend/dist"
+
+[database]
+url = "sqlite:/data/bbb-library.db"
+
+[bbb]
+url = "https://bbb.example.com/bigbluebutton/api"
+secret = "change-me"
+import_interval_secs = 600
+
+[capture]
+storage_dir = "/data/recordings"
+ffmpeg_path = "ffmpeg"
+output_format = "mp4"
+retry_interval_secs = 15
