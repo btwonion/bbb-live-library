@@ -3,7 +3,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde::Deserialize;
 
-use crate::bbb::importer;
+use crate::bbb::{importer, public};
 use crate::error::AppError;
 use crate::models::Recording;
 use crate::AppState;
@@ -14,21 +14,20 @@ pub struct ImportUrlRequest {
     pub title: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ImportPublicBbbRequest {
+    pub url: String,
+    pub record_id: Option<String>,
+    pub title: Option<String>,
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/import/trigger", post(trigger_bbb_import))
         .route("/api/import/url", post(import_from_url))
+        .route("/api/import/bbb-public", post(import_public_bbb))
 }
 
-/// Triggers a bulk import of recordings from the BBB API.
-async fn trigger_bbb_import(
-    State(state): State<AppState>,
-) -> Result<Json<importer::ImportResult>, AppError> {
-    let result = importer::run_bbb_import(&state.db, &state.config).await?;
-    Ok(Json(result))
-}
-
-/// Imports a single recording from a user-provided URL.
+/// Imports a single recording from a user-provided direct video URL.
 async fn import_from_url(
     State(state): State<AppState>,
     Json(body): Json<ImportUrlRequest>,
@@ -40,6 +39,36 @@ async fn import_from_url(
     let recording =
         importer::import_from_url(&state.db, &state.config, &body.url, body.title.as_deref())
             .await?;
+
+    Ok(Json(recording))
+}
+
+/// Imports a recording from a public BBB server URL.
+async fn import_public_bbb(
+    State(state): State<AppState>,
+    Json(body): Json<ImportPublicBbbRequest>,
+) -> Result<Json<Recording>, AppError> {
+    if body.url.is_empty() {
+        return Err(AppError::BadRequest("URL is required".to_string()));
+    }
+
+    let (server_url, record_id) = if let Some(ref rid) = body.record_id {
+        // url is the server base URL, record_id is provided explicitly
+        (body.url.clone(), rid.clone())
+    } else {
+        // url is a full BBB playback URL — parse it
+        public::parse_bbb_url(&body.url)
+            .map_err(|e| AppError::BadRequest(format!("Invalid BBB URL: {e}")))?
+    };
+
+    let recording = importer::import_public_bbb(
+        &state.db,
+        &state.config,
+        &server_url,
+        &record_id,
+        body.title.as_deref(),
+    )
+    .await?;
 
     Ok(Json(recording))
 }

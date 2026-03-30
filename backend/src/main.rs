@@ -48,41 +48,6 @@ async fn main() -> anyhow::Result<()> {
     // Cancellation infrastructure
     let token = CancellationToken::new();
 
-    // Spawn background BBB import task if configured
-    if let Some(interval_secs) = config.bbb.import_interval_secs {
-        let import_db = state.db.clone();
-        let import_config = config.clone();
-        let import_token = token.clone();
-        let interval = std::time::Duration::from_secs(interval_secs);
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = import_token.cancelled() => {
-                        tracing::info!("BBB import loop shutting down");
-                        break;
-                    }
-                    _ = tokio::time::sleep(interval) => {
-                        tracing::info!("Running scheduled BBB import");
-                        match bbb::importer::run_bbb_import(&import_db, &import_config).await {
-                            Ok(result) => {
-                                tracing::info!(
-                                    "BBB import complete: {} imported, {} skipped, {} errors",
-                                    result.imported,
-                                    result.skipped,
-                                    result.errors.len()
-                                );
-                            }
-                            Err(err) => {
-                                tracing::error!("BBB import failed: {err:#}");
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        tracing::info!("Background BBB import enabled (interval: {interval_secs}s)");
-    }
-
     // Spawn background capture scheduler
     {
         let scheduler_db = state.db.clone();
@@ -103,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
         .as_deref()
         .unwrap_or("frontend/dist");
     let spa = ServeDir::new(frontend_dir)
-        .not_found_service(ServeFile::new(format!("{frontend_dir}/index.html")));
+        .fallback(ServeFile::new(format!("{frontend_dir}/index.html")));
 
     let app = Router::new()
         .route("/api/health", get(health))

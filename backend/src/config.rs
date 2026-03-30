@@ -4,7 +4,6 @@ use serde::Deserialize;
 pub struct AppConfig {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
-    pub bbb: BbbConfig,
     pub capture: CaptureConfig,
 }
 
@@ -18,13 +17,6 @@ pub struct ServerConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
     pub url: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BbbConfig {
-    pub url: String,
-    pub secret: String,
-    pub import_interval_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

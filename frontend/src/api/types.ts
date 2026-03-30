@@ -71,10 +71,10 @@ export interface CategoryCount {
   count: number;
 }
 
-export interface ImportResult {
-  imported: number;
-  skipped: number;
-  errors: string[];
+export interface ImportPublicBbbRequest {
+  url: string;
+  record_id?: string;
+  title?: string;
 }
 
 export interface UpdateRecordingRequest {

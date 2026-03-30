@@ -106,7 +106,7 @@ async fn stream_recording(
         })?;
 
         let limited = file.take(length);
-        let stream = ReaderStream::new(limited);
+        let stream = ReaderStream::with_capacity(limited, 64 * 1024);
 
         Ok(Response::builder()
             .status(StatusCode::PARTIAL_CONTENT)
@@ -117,7 +117,7 @@ async fn stream_recording(
             .body(Body::from_stream(stream))
             .unwrap())
     } else {
-        let stream = ReaderStream::new(file);
+        let stream = ReaderStream::with_capacity(file, 64 * 1024);
 
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -157,7 +157,7 @@ async fn serve_thumbnail(
         AppError::Internal(err.into())
     })?;
 
-    let stream = ReaderStream::new(file);
+    let stream = ReaderStream::with_capacity(file, 64 * 1024);
 
     Ok(Response::builder()
         .status(StatusCode::OK)

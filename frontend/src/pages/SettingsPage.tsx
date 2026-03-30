@@ -1,22 +1,28 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Download, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Download, FileText, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import { triggerBbbImport } from "@/api/import";
+import { importPublicBbb } from "@/api/import";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import type { ImportResult } from "@/api/types";
 
 export default function SettingsPage() {
   useDocumentTitle("Settings");
 
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [bbbUrl, setBbbUrl] = useState("");
+  const [recordId, setRecordId] = useState("");
+  const [title, setTitle] = useState("");
+  const [importedTitle, setImportedTitle] = useState<string | null>(null);
 
   const importMutation = useMutation({
-    mutationFn: triggerBbbImport,
+    mutationFn: importPublicBbb,
     onSuccess: (data) => {
-      setImportResult(data);
-      toast.success(`Import complete: ${data.imported} imported, ${data.skipped} skipped`);
+      setImportedTitle(data.title);
+      toast.success(`Imported: ${data.title}`);
+      setBbbUrl("");
+      setRecordId("");
+      setTitle("");
     },
   });
 
@@ -24,49 +30,77 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-8">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* BBB Import */}
+      {/* Public BBB Import */}
       <section className="flex flex-col gap-4 rounded-lg border p-6">
         <div className="flex items-center gap-3">
           <Download className="size-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">BBB Import</h2>
+          <h2 className="text-lg font-semibold">Public BBB Import</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Manually trigger a bulk import of recordings from your BigBlueButton
-          server. This fetches all published recordings and imports any that
-          haven&apos;t been imported yet.
+          Import a recording from a public BigBlueButton server. Paste a full
+          playback URL, or provide the server base URL and recording ID
+          separately.
         </p>
-        <div className="flex items-center gap-4">
-          <Button
-            onClick={() => {
-              setImportResult(null);
-              importMutation.mutate();
-            }}
-            disabled={importMutation.isPending}
-          >
-            <Download className="size-4" />
-            {importMutation.isPending ? "Importing..." : "Trigger Import"}
-          </Button>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="bbb-url" className="text-sm font-medium">BBB Recording URL</label>
+            <Input
+              id="bbb-url"
+              placeholder="https://bbb.example.com/playback/presentation/2.3/record-id"
+              value={bbbUrl}
+              onChange={(e) => setBbbUrl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Full playback URL, or server base URL if recording ID is provided
+              below.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="record-id" className="text-sm font-medium">Recording ID (optional)</label>
+            <Input
+              id="record-id"
+              placeholder="abc123-def456-..."
+              value={recordId}
+              onChange={(e) => setRecordId(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="title" className="text-sm font-medium">Title (optional)</label>
+            <Input
+              id="title"
+              placeholder="Override the recording title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => {
+                setImportedTitle(null);
+                importMutation.mutate({
+                  url: bbbUrl,
+                  record_id: recordId || undefined,
+                  title: title || undefined,
+                });
+              }}
+              disabled={importMutation.isPending || !bbbUrl}
+            >
+              <Download className="size-4" />
+              {importMutation.isPending ? "Importing..." : "Import Recording"}
+            </Button>
+          </div>
         </div>
 
-        {importResult && (
-          <div className="flex flex-col gap-2 rounded-md border bg-muted/50 p-4 text-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="size-4 text-green-600" />
-              <span>
-                <strong>{importResult.imported}</strong> imported,{" "}
-                <strong>{importResult.skipped}</strong> skipped
-              </span>
-            </div>
-            {importResult.errors.length > 0 && (
-              <div className="flex items-start gap-2 text-destructive">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <ul className="list-inside list-disc">
-                  {importResult.errors.map((err, i) => (
-                    <li key={i}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+        {importedTitle && (
+          <div className="flex items-center gap-2 rounded-md border bg-muted/50 p-4 text-sm">
+            <CheckCircle className="size-4 text-green-600" />
+            <span>
+              Successfully imported: <strong>{importedTitle}</strong>
+            </span>
           </div>
         )}
 
@@ -94,9 +128,6 @@ export default function SettingsPage() {
         </p>
         <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
           <li>
-            <strong>BBB connection</strong> &mdash; server URL and shared secret
-          </li>
-          <li>
             <strong>Storage</strong> &mdash; recording file storage directory
           </li>
           <li>
@@ -104,10 +135,6 @@ export default function SettingsPage() {
           </li>
           <li>
             <strong>Server</strong> &mdash; host, port, and database URL
-          </li>
-          <li>
-            <strong>Auto-import</strong> &mdash; interval for background BBB
-            import
           </li>
         </ul>
         <p className="text-xs text-muted-foreground">

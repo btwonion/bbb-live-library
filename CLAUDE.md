@@ -25,6 +25,7 @@ frontend/               -- React + TypeScript frontend (Vite)
     hooks/              -- Custom React hooks
     lib/                -- Utility functions
     pages/              -- Page-level components
+    assets/             -- Static assets (fonts, images)
 config.docker.toml      -- Config for containerized deployments
 docker-compose.yml      -- Docker Compose setup
 Dockerfile              -- Multi-stage build (frontend + backend)
@@ -63,10 +64,11 @@ The backend loads `config.toml` from the working directory by default. For Docke
 Config sections:
 - `[server]` — host, port, `frontend_dir` (path to built frontend assets)
 - `[database]` — SQLite connection URL
-- `[bbb]` — BBB server URL, shared secret, import interval
 - `[capture]` — storage directory, ffmpeg path, output format, retry interval
 
-For local development, create a `config.toml` based on `config.docker.toml` with local paths and your BBB server credentials.
+BBB server connections are managed via import sources in the database (added through the Settings page), not the config file.
+
+For local development, create a `config.toml` based on `config.docker.toml` with local paths.
 
 ## Code Conventions
 
@@ -125,12 +127,66 @@ For local development, create a `config.toml` based on `config.docker.toml` with
 
 ## Testing
 
-Current state: unit tests exist in `backend/src/bbb/client.rs` only.
+Current state: unit tests exist in `backend/src/bbb/public.rs` only.
 
 Conventions to follow when adding tests:
 - Backend: integration tests against an in-memory SQLite database
 - No mocking the database — use a real SQLite instance in tests for accuracy
 - Frontend: component tests with Vitest + Testing Library for critical flows
+
+## Playwright Frontend Testing (Required)
+
+After any changes to files in `frontend/src/` or `backend/src/api/`, you **must** run a Playwright smoke test using the Playwright MCP tools before considering the task complete. This ensures no regressions in the UI or API integration.
+
+### Prerequisites
+1. Build the frontend: `cd frontend && npm run build`
+2. Start the backend: `cd <project-root> && cargo run --manifest-path backend/Cargo.toml`
+3. Wait for `http://localhost:8080/api/health` to return `{"status":"ok"}`
+
+### Test checklist
+Run these checks using the Playwright MCP browser tools:
+
+1. **Dashboard** (`http://localhost:8080/`)
+   - Page loads, stats cards render, recent recordings appear
+   - Zero console errors (`browser_console_messages` with level `error`)
+
+2. **Recordings page** (`http://localhost:8080/recordings`)
+   - Grid view shows recording cards with thumbnails
+   - List view toggle works (`?view=list`)
+   - Search filters results
+   - Zero console errors
+
+3. **Video playback** (`http://localhost:8080/recordings/{id}`) — **most critical**
+   - Video element has `readyState >= 3` (enough data to play) and `error: null`
+   - `video.play()` advances `currentTime` (verify after ~1s delay)
+   - Seeking (`video.currentTime = N`) works without errors
+   - Stream endpoint returns `206 Partial Content` for range requests
+   - Zero console errors
+
+4. **Other pages** (Schedules, Categories, Settings)
+   - Pages load without console errors
+
+### How to check video state
+```js
+// Use browser_evaluate with this function:
+() => {
+  const video = document.querySelector('video');
+  if (!video) return 'No video element found';
+  return {
+    readyState: video.readyState,
+    error: video.error ? { code: video.error.code, message: video.error.message } : null,
+    duration: video.duration,
+    paused: video.paused,
+    currentTime: video.currentTime,
+  };
+}
+```
+
+### Failure handling
+If any check fails, fix the issue before completing the task. Common issues:
+- Font 404s → check `frontend/dist/assets/files/` for woff2 files
+- SPA route 404 in console → backend must use `ServeDir::fallback()` not `.not_found_service()`
+- Video won't load → check `/api/recordings/{id}/stream` returns 200/206
 
 ## Gotchas
 

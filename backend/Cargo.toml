@@ -18,7 +18,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 reqwest = { version = "0.12", features = ["stream"] }
 quick-xml = { version = "0.37", features = ["serialize"] }
-sha2 = "0.10"
+url = "2"
 tokio-stream = "0.1"
 futures-util = "0.3"
 cron = "0.13"

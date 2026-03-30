@@ -9,7 +9,23 @@
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(cd:*)",
-      "mcp__plugin_playwright_playwright__*"
+      "mcp__plugin_playwright_playwright__*",
+      "Bash(curl:*)",
+      "Bash(sqlite3:*)",
+      "Bash(lsof:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_install",
+      "Bash(flatpak list:*)",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "WebSearch",
+      "WebFetch(domain:*)",
+      "Bash(pkill -f \"target/debug/bbb-live-library\")",
+      "Bash(grep -E \"\\\\.\\(rs|toml\\)$\")"
     ]
   }
 }
