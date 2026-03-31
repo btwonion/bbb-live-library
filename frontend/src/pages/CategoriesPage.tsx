@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { listCategories, deleteCategory } from "@/api/categories";
+import { getStats } from "@/api/stats";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -16,7 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { CategoryCard } from "@/components/CategoryCard";
+import { CategorySection } from "@/components/CategorySection";
 import { CategoryForm } from "@/components/CategoryForm";
 import type { Category } from "@/api/types";
 
@@ -37,6 +38,17 @@ export default function CategoriesPage() {
     queryKey: ["categories"],
     queryFn: listCategories,
   });
+
+  const { data: stats } = useQuery({
+    queryKey: ["stats"],
+    queryFn: getStats,
+  });
+
+  const countByName = useMemo(() => {
+    const map = new Map<string, number>();
+    stats?.by_category.forEach((c) => map.set(c.category_name, c.count));
+    return map;
+  }, [stats]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCategory(id),
@@ -68,9 +80,16 @@ export default function CategoriesPage() {
       </div>
 
       {isLoading && (
-        <div className="space-y-3">
+        <div className="space-y-8">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            <div key={i} className="space-y-3">
+              <Skeleton className="h-8 w-48" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <Skeleton key={j} className="aspect-video rounded-lg" />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -92,11 +111,12 @@ export default function CategoriesPage() {
       )}
 
       {!isLoading && categories && categories.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-8">
           {categories.map((category) => (
-            <CategoryCard
+            <CategorySection
               key={category.id}
               category={category}
+              recordingCount={countByName.get(category.name) ?? 0}
               onEdit={handleEdit}
               onDelete={setDeletingCategory}
             />

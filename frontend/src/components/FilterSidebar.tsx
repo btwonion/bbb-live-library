@@ -65,12 +65,18 @@ export function FilterSidebar({
         </label>
         <Select value={source || "all"} onValueChange={(v) => onSourceChange(v === "all" || !v ? "" : v)}>
           <SelectTrigger className="w-full">
-            <SelectValue />
+            <SelectValue>
+              {(value: string) => {
+                if (!value || value === "all") return "All sources";
+                if (value === "live_capture") return "Live Capture";
+                return "BBB Import";
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" label="All sources">All sources</SelectItem>
-            <SelectItem value="live_capture" label="Live Capture">Live Capture</SelectItem>
-            <SelectItem value="bbb_import" label="BBB Import">BBB Import</SelectItem>
+            <SelectItem value="all">All sources</SelectItem>
+            <SelectItem value="live_capture">Live Capture</SelectItem>
+            <SelectItem value="bbb_import">BBB Import</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -85,12 +91,17 @@ export function FilterSidebar({
             onValueChange={(v) => onCategoryChange(v === "all" || !v ? "" : v)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <SelectValue>
+                {(value: string) => {
+                  if (!value || value === "all") return "All categories";
+                  return categories?.find((c) => c.id === value)?.name ?? value;
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" label="All categories">All categories</SelectItem>
+              <SelectItem value="all">All categories</SelectItem>
               {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id} label={c.name}>
+                <SelectItem key={c.id} value={c.id}>
                   {c.name}
                 </SelectItem>
               ))}
@@ -109,12 +120,17 @@ export function FilterSidebar({
             onValueChange={(v) => onTagChange(v === "all" || !v ? "" : v)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <SelectValue>
+                {(value: string) => {
+                  if (!value || value === "all") return "All tags";
+                  return tags?.find((t) => t.id === value)?.name ?? value;
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" label="All tags">All tags</SelectItem>
+              <SelectItem value="all">All tags</SelectItem>
               {tags.map((t) => (
-                <SelectItem key={t.id} value={t.id} label={t.name}>
+                <SelectItem key={t.id} value={t.id}>
                   {t.name}
                 </SelectItem>
               ))}

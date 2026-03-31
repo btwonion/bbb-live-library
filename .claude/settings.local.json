@@ -30,5 +30,8 @@
       "mcp__playwright__browser_snapshot",
       "Bash(docker compose:*)"
     ]
+  },
+  "enabledPlugins": {
+    "context7@claude-plugins-official": true
   }
 }
