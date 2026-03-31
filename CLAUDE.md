@@ -7,11 +7,18 @@ A platform for storing, categorizing, and browsing BigBlueButton (BBB) live reco
 ## Project Structure
 
 ```
+recorder/               -- Node.js Playwright script for browser-based capture
+  record.js             -- Joins BBB rooms and enables screen/audio capture
+  package.json          -- Playwright dependency
 backend/                -- Rust backend (Axum + SQLite)
   src/
     api/                -- API route handlers (categories, import, playback, recordings, schedules, stats, tags)
     bbb/                -- BBB API client
-    capture/            -- Recording capture via ffmpeg
+    capture/            -- Recording capture (ffmpeg direct + browser-based via Playwright)
+      browser_recorder.rs -- Browser capture pipeline (Xvfb + PulseAudio + ffmpeg)
+      common.rs         -- Shared capture utilities
+      recorder.rs       -- Direct ffmpeg stream capture
+      scheduler.rs      -- Schedule-based capture orchestration
     config.rs           -- Config file parsing
     db.rs               -- Database pool and migrations
     error.rs            -- AppError type
@@ -64,7 +71,7 @@ The backend loads `config.toml` from the working directory by default. For Docke
 Config sections:
 - `[server]` — host, port, `frontend_dir` (path to built frontend assets)
 - `[database]` — SQLite connection URL
-- `[capture]` — storage directory, ffmpeg path, output format, retry interval
+- `[capture]` — storage directory, ffmpeg path, output format, retry interval, `recorder_script_path` (path to Node.js browser recorder script)
 
 BBB server connections are managed via import sources in the database (added through the Settings page), not the config file.
 
@@ -104,7 +111,8 @@ For local development, create a `config.toml` based on `config.docker.toml` with
 ## Architecture Decisions
 
 - **SQLite** — single-file database, no external DB server needed, sufficient for this workload
-- **ffmpeg via subprocess** — more reliable and flexible than Rust ffmpeg bindings; capture and thumbnail generation both use it
+- **ffmpeg via subprocess** — more reliable and flexible than Rust ffmpeg bindings; used for direct stream capture, browser screen/audio capture, and thumbnail generation
+- **Browser-based capture** — for rooms without direct RTMP streams, a Playwright script (`recorder/record.js`) joins the BBB room in a headless browser (Xvfb), captures screen via ffmpeg x11grab and audio via PulseAudio virtual sink
 - **Axum** — lightweight, tower-based, good ecosystem fit with sqlx and tokio
 - **Shadcn/ui** — copy-paste components (not a dependency), full control over styling
 - **TanStack Query** — handles caching, refetching, and loading/error states so we don't
@@ -194,3 +202,5 @@ If any check fails, fix the issue before completing the task. Common issues:
 - **Frontend in production** is served as static files by the backend from `frontend/dist` — run `npm run build` before the backend can serve it
 - **Migrations** run automatically on startup — no manual migration step needed in normal operation
 - **Config file** is loaded from `config.toml` in the working directory by default
+- **Browser capture dependencies** — browser-based recording requires Xvfb, PulseAudio, and Node.js with Playwright installed at runtime
+- **Recorder setup** — run `cd recorder && npm install` to install Playwright; the script is spawned as a subprocess by the backend

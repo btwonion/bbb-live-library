@@ -38,14 +38,18 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState(schedule?.title ?? "");
+  const [recordingType, setRecordingType] = useState<"rtmp" | "room">(
+    schedule?.stream_url ? "rtmp" : "room",
+  );
   const [streamUrl, setStreamUrl] = useState(schedule?.stream_url ?? "");
+  const [roomUrl, setRoomUrl] = useState(schedule?.room_url ?? "");
+  const [botName, setBotName] = useState(schedule?.bot_name ?? "");
   const [startTime, setStartTime] = useState<Date | undefined>(
     schedule ? new Date(schedule.start_time) : undefined,
   );
   const [endTime, setEndTime] = useState<Date | undefined>(
     schedule?.end_time ? new Date(schedule.end_time) : undefined,
   );
-  const [meetingId, setMeetingId] = useState(schedule?.meeting_id ?? "");
   const [recurrence, setRecurrence] = useState(schedule?.recurrence ?? "");
 
   const createMutation = useMutation({
@@ -79,10 +83,11 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
 
     const payload = {
       title,
-      stream_url: streamUrl,
+      stream_url: recordingType === "rtmp" ? streamUrl : "",
+      room_url: recordingType === "room" ? roomUrl : "",
+      bot_name: recordingType === "room" ? botName || undefined : undefined,
       start_time: startTime.toISOString(),
       end_time: endTime ? endTime.toISOString() : undefined,
-      meeting_id: meetingId || undefined,
       recurrence: recurrence || undefined,
     };
 
@@ -108,37 +113,89 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
       </div>
 
       <div className="space-y-1">
-        <div className="flex items-center gap-1">
-          <label htmlFor="sf-stream" className="text-xs font-medium">
-            Stream URL *
-          </label>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<span />}>
-                <HelpCircle className="size-3.5 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>The RTMP stream URL from your BigBlueButton server.</p>
-                <a
-                  href="https://docs.bigbluebutton.org/administration/customize/#enable-live-streaming"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Learn more
-                </a>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+        <label className="text-xs font-medium">Recording Source *</label>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={recordingType === "room" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => setRecordingType("room")}
+          >
+            BBB Room
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={recordingType === "rtmp" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => setRecordingType("rtmp")}
+          >
+            RTMP Stream
+          </Button>
         </div>
-        <Input
-          id="sf-stream"
-          value={streamUrl}
-          onChange={(e) => setStreamUrl(e.target.value)}
-          placeholder="rtmp://..."
-          required
-        />
       </div>
+
+      {recordingType === "rtmp" ? (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1">
+            <label htmlFor="sf-stream" className="text-xs font-medium">
+              Stream URL *
+            </label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={<span />}>
+                  <HelpCircle className="size-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>The RTMP stream URL from your BigBlueButton server.</p>
+                  <a
+                    href="https://docs.bigbluebutton.org/administration/customize/#enable-live-streaming"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Learn more
+                  </a>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Input
+            id="sf-stream"
+            value={streamUrl}
+            onChange={(e) => setStreamUrl(e.target.value)}
+            placeholder="rtmp://..."
+            required
+          />
+        </div>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <label htmlFor="sf-room-url" className="text-xs font-medium">
+              Room URL *
+            </label>
+            <Input
+              id="sf-room-url"
+              value={roomUrl}
+              onChange={(e) => setRoomUrl(e.target.value)}
+              placeholder="https://bbb.example.com/rooms/.../join"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="sf-bot-name" className="text-xs font-medium">
+              Bot Name
+            </label>
+            <Input
+              id="sf-bot-name"
+              value={botName}
+              onChange={(e) => setBotName(e.target.value)}
+              placeholder="Recorder"
+            />
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -149,18 +206,6 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
           <label className="text-xs font-medium">End Time</label>
           <DateTimePicker value={endTime} onChange={setEndTime} />
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <label htmlFor="sf-meeting" className="text-xs font-medium">
-          Meeting ID
-        </label>
-        <Input
-          id="sf-meeting"
-          value={meetingId}
-          onChange={(e) => setMeetingId(e.target.value)}
-          placeholder="Optional BBB meeting ID"
-        />
       </div>
 
       <div className="space-y-1">

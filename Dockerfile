@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend
-FROM rust:1.83-slim AS backend-build
+FROM rust:1.85-slim AS backend-build
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
 
@@ -22,11 +22,15 @@ RUN touch src/main.rs && cargo build --release
 
 # Stage 3: Runtime
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    ffmpeg ca-certificates xvfb pulseaudio nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=backend-build /app/backend/target/release/bbb-live-library /app/bbb-live-library
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
+COPY recorder/package.json recorder/record.js /app/recorder/
+RUN cd /app/recorder && npm install && npx playwright install --with-deps chromium
 COPY config.docker.toml /app/config.toml
 
 RUN mkdir -p /data/recordings/thumbs

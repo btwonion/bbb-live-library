@@ -35,7 +35,6 @@ export interface Tag {
 export interface Schedule {
   id: string;
   title: string;
-  meeting_id: string;
   start_time: string;
   end_time: string | null;
   recurrence: string | null;
@@ -43,6 +42,8 @@ export interface Schedule {
   created_at: string;
   updated_at: string;
   stream_url: string;
+  room_url: string;
+  bot_name: string;
   status: string;
 }
 
@@ -88,11 +89,12 @@ export interface AssignIdsRequest {
 
 export interface CreateScheduleRequest {
   title: string;
-  stream_url: string;
+  stream_url?: string;
   start_time: string;
   end_time?: string;
-  meeting_id?: string;
   recurrence?: string;
+  room_url?: string;
+  bot_name?: string;
 }
 
 export interface UpdateScheduleRequest {
@@ -100,9 +102,10 @@ export interface UpdateScheduleRequest {
   stream_url?: string;
   start_time?: string;
   end_time?: string;
-  meeting_id?: string;
   recurrence?: string;
   enabled?: boolean;
+  room_url?: string;
+  bot_name?: string;
 }
 
 export interface CreateCategoryRequest {

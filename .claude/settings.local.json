@@ -9,6 +9,9 @@
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(cd:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(pkill:*)",
       "mcp__plugin_playwright_playwright__*",
       "Bash(curl:*)",
       "Bash(sqlite3:*)",
@@ -24,8 +27,8 @@
       "mcp__playwright__browser_type",
       "WebSearch",
       "WebFetch(domain:*)",
-      "Bash(pkill -f \"target/debug/bbb-live-library\")",
-      "Bash(grep -E \"\\\\.\\(rs|toml\\)$\")"
+      "mcp__playwright__browser_snapshot",
+      "Bash(docker compose:*)"
     ]
   }
 }

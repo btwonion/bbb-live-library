@@ -1,0 +1,2 @@
+ALTER TABLE schedules ADD COLUMN room_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE schedules ADD COLUMN bot_name TEXT NOT NULL DEFAULT 'Recorder';

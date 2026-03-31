@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub struct Schedule {
     pub id: String,
     pub title: String,
-    pub meeting_id: String,
     pub start_time: String,
     pub end_time: Option<String>,
     pub recurrence: Option<String>,
@@ -14,6 +13,8 @@ pub struct Schedule {
     pub updated_at: NaiveDateTime,
     pub stream_url: String,
     pub status: String,
+    pub room_url: String,
+    pub bot_name: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]

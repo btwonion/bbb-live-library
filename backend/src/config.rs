@@ -25,6 +25,7 @@ pub struct CaptureConfig {
     pub ffmpeg_path: String,
     pub output_format: Option<String>,
     pub retry_interval_secs: Option<u64>,
+    pub recorder_script_path: Option<String>,
 }
 
 /// Loads the application configuration from a TOML file at the given path.

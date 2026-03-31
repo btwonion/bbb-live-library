@@ -12,11 +12,12 @@ use crate::AppState;
 #[derive(Debug, Deserialize)]
 pub struct CreateScheduleRequest {
     pub title: String,
-    pub stream_url: String,
+    pub stream_url: Option<String>,
     pub start_time: String,
     pub end_time: Option<String>,
-    pub meeting_id: Option<String>,
     pub recurrence: Option<String>,
+    pub room_url: Option<String>,
+    pub bot_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,9 +26,10 @@ pub struct UpdateScheduleRequest {
     pub stream_url: Option<String>,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
-    pub meeting_id: Option<String>,
     pub recurrence: Option<String>,
     pub enabled: Option<bool>,
+    pub room_url: Option<String>,
+    pub bot_name: Option<String>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -72,21 +74,31 @@ async fn create_schedule(
     State(state): State<AppState>,
     Json(body): Json<CreateScheduleRequest>,
 ) -> Result<(StatusCode, Json<Schedule>), AppError> {
+    let stream_url = body.stream_url.unwrap_or_default();
+    let room_url = body.room_url.unwrap_or_default();
+
+    if stream_url.is_empty() && room_url.is_empty() {
+        return Err(AppError::BadRequest(
+            "Either stream_url or room_url must be provided".to_string(),
+        ));
+    }
+
     let id = uuid::Uuid::new_v4().to_string();
-    let meeting_id = body.meeting_id.unwrap_or_default();
+    let bot_name = body.bot_name.unwrap_or_else(|| "Recorder".to_string());
 
     let schedule = sqlx::query_as::<_, Schedule>(
-        "INSERT INTO schedules (id, title, stream_url, meeting_id, start_time, end_time, recurrence, enabled, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 'pending', datetime('now'), datetime('now'))
+        "INSERT INTO schedules (id, title, stream_url, start_time, end_time, recurrence, enabled, status, room_url, bot_name, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'pending', ?7, ?8, datetime('now'), datetime('now'))
          RETURNING *",
     )
     .bind(&id)
     .bind(&body.title)
-    .bind(&body.stream_url)
-    .bind(&meeting_id)
+    .bind(&stream_url)
     .bind(&body.start_time)
     .bind(&body.end_time)
     .bind(&body.recurrence)
+    .bind(&room_url)
+    .bind(&bot_name)
     .fetch_one(&state.db)
     .await?;
 
@@ -117,19 +129,21 @@ async fn update_schedule(
             stream_url = COALESCE(?2, stream_url),
             start_time = COALESCE(?3, start_time),
             end_time = COALESCE(?4, end_time),
-            meeting_id = COALESCE(?5, meeting_id),
-            recurrence = COALESCE(?6, recurrence),
-            enabled = COALESCE(?7, enabled),
+            recurrence = COALESCE(?5, recurrence),
+            enabled = COALESCE(?6, enabled),
+            room_url = COALESCE(?7, room_url),
+            bot_name = COALESCE(?8, bot_name),
             updated_at = datetime('now')
-         WHERE id = ?8",
+         WHERE id = ?9",
     )
     .bind(&body.title)
     .bind(&body.stream_url)
     .bind(&body.start_time)
     .bind(&body.end_time)
-    .bind(&body.meeting_id)
     .bind(&body.recurrence)
     .bind(body.enabled)
+    .bind(&body.room_url)
+    .bind(&body.bot_name)
     .bind(&id)
     .execute(&state.db)
     .await?;

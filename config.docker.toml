@@ -11,3 +11,4 @@ storage_dir = "/data/recordings"
 ffmpeg_path = "ffmpeg"
 output_format = "mp4"
 retry_interval_secs = 15
+recorder_script_path = "recorder/record.js"

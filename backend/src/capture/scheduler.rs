@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use crate::config::AppConfig;
 use crate::models::Schedule;
 
+use super::browser_recorder;
 use super::recorder;
 
 /// Background loop that checks for due schedules and starts recordings.
@@ -62,8 +63,8 @@ async fn check_schedules(
             }
         }
 
-        if schedule.stream_url.is_empty() {
-            tracing::warn!(schedule_id = %schedule.id, "Skipping schedule with empty stream_url");
+        if schedule.room_url.is_empty() && schedule.stream_url.is_empty() {
+            tracing::warn!(schedule_id = %schedule.id, "Skipping schedule with no stream_url or room_url");
             continue;
         }
 
@@ -75,13 +76,25 @@ async fn check_schedules(
         .execute(db)
         .await?;
 
-        tracing::info!(schedule_id = %schedule.id, title = %schedule.title, "Starting scheduled capture");
-        recorder::start_recording(
-            db.clone(),
-            config.clone(),
-            schedule.clone(),
-            token.clone(),
-        );
+        if !schedule.room_url.is_empty() {
+            // Browser-based recording path
+            tracing::info!(schedule_id = %schedule.id, title = %schedule.title, "Starting scheduled browser capture");
+            browser_recorder::start_browser_recording(
+                db.clone(),
+                config.clone(),
+                schedule.clone(),
+                token.clone(),
+            );
+        } else {
+            // Existing RTMP recording path
+            tracing::info!(schedule_id = %schedule.id, title = %schedule.title, "Starting scheduled capture");
+            recorder::start_recording(
+                db.clone(),
+                config.clone(),
+                schedule.clone(),
+                token.clone(),
+            );
+        }
     }
 
     // Handle completed recurring schedules — compute next occurrence

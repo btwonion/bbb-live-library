@@ -55,7 +55,7 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Link className="size-3" />
-            {truncate(schedule.stream_url, 40)}
+            {truncate(schedule.room_url || schedule.stream_url, 40)}
           </span>
           <span className="inline-flex items-center gap-1">
             <Calendar className="size-3" />
