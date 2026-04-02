@@ -20,9 +20,7 @@ export default function RecordingsPage() {
 
   const view = (searchParams.get("view") as "grid" | "list") || "grid";
   const page = Number(searchParams.get("page")) || 1;
-  const source = searchParams.get("source") || "";
   const categoryId = searchParams.get("category") || "";
-  const tagId = searchParams.get("tag") || "";
   const urlSearch = searchParams.get("q") || "";
 
   const [searchInput, setSearchInput] = useState(urlSearch);
@@ -36,18 +34,16 @@ export default function RecordingsPage() {
   }, [debouncedSearch]);
 
   const perPage = view === "grid" ? GRID_PER_PAGE : LIST_PER_PAGE;
-  const hasFilters = !!(urlSearch || source || categoryId || tagId);
+  const hasFilters = !!(urlSearch || categoryId);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["recordings", { page, perPage, search: urlSearch, source, categoryId, tagId }],
+    queryKey: ["recordings", { page, perPage, search: urlSearch, categoryId }],
     queryFn: () =>
       listRecordings({
         page,
         per_page: perPage,
         search: urlSearch || undefined,
-        source: source || undefined,
         category_id: categoryId || undefined,
-        tag_id: tagId || undefined,
       }),
   });
 
@@ -97,12 +93,8 @@ export default function RecordingsPage() {
         <FilterSidebar
           search={searchInput}
           onSearchChange={setSearchInput}
-          source={source}
-          onSourceChange={(v) => updateParam("source", v)}
           categoryId={categoryId}
           onCategoryChange={(v) => updateParam("category", v)}
-          tagId={tagId}
-          onTagChange={(v) => updateParam("tag", v)}
           onClearAll={clearAll}
         />
         <div className="min-w-0 flex-1">

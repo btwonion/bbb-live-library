@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { getRecording, deleteRecording } from "@/api/recordings";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { MetadataPanel } from "@/components/MetadataPanel";
-import { CategoryTagEditor } from "@/components/CategoryTagEditor";
+import { CategoryEditor } from "@/components/CategoryEditor";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -101,8 +101,8 @@ export default function RecordingDetailPage() {
       {/* Metadata */}
       <MetadataPanel recording={recording} />
 
-      {/* Categories & Tags */}
-      <CategoryTagEditor recording={recording} />
+      {/* Categories */}
+      <CategoryEditor recording={recording} />
 
       {/* Delete */}
       <div className="border-t pt-6">

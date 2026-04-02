@@ -4,7 +4,6 @@ mod playback;
 mod recordings;
 mod schedules;
 mod stats;
-mod tags;
 
 use axum::Router;
 use serde::{Deserialize, Serialize};
@@ -38,7 +37,6 @@ pub struct PaginatedResponse<T: Serialize> {
 pub fn router() -> Router<AppState> {
     Router::new()
         .merge(categories::router())
-        .merge(tags::router())
         .merge(recordings::router())
         .merge(stats::router())
         .merge(import::router())

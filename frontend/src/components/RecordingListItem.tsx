@@ -1,16 +1,11 @@
 import { Link } from "react-router-dom";
 import { Video } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { formatDuration } from "@/lib/formatDuration";
 import { getThumbnailUrl } from "@/api/recordings";
 import type { Recording } from "@/api/types";
 
 interface RecordingListItemProps {
   recording: Recording;
-}
-
-function sourceLabel(source: string): string {
-  return source === "live_capture" ? "Live" : "Import";
 }
 
 export function RecordingListItem({ recording }: RecordingListItemProps) {
@@ -48,9 +43,6 @@ export function RecordingListItem({ recording }: RecordingListItemProps) {
             {formatDuration(recording.duration_seconds)}
           </span>
         )}
-        <Badge variant="outline" className="text-xs">
-          {sourceLabel(recording.source)}
-        </Badge>
         <span className="whitespace-nowrap">{date}</span>
       </div>
     </Link>

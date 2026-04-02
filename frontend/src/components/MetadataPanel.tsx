@@ -5,17 +5,12 @@ import { toast } from "sonner";
 import { updateRecording } from "@/api/recordings";
 import type { RecordingDetail } from "@/api/types";
 import { formatDuration } from "@/lib/formatDuration";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 interface MetadataPanelProps {
   recording: RecordingDetail;
-}
-
-function sourceLabel(source: string): string {
-  return source === "live_capture" ? "Live" : "Import";
 }
 
 export function MetadataPanel({ recording }: MetadataPanelProps) {
@@ -147,7 +142,6 @@ export function MetadataPanel({ recording }: MetadataPanelProps) {
 
       {/* Metadata grid */}
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <Badge variant="outline">{sourceLabel(recording.source)}</Badge>
         {recording.duration_seconds != null && (
           <span>{formatDuration(recording.duration_seconds)}</span>
         )}

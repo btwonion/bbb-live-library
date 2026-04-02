@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{PaginatedResponse, PaginationParams};
 use crate::error::AppError;
-use crate::models::{Category, Recording, Tag};
+use crate::models::{Category, Recording};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -14,9 +14,7 @@ pub struct RecordingListParams {
     pub page: Option<u32>,
     pub per_page: Option<u32>,
     pub search: Option<String>,
-    pub source: Option<String>,
     pub category_id: Option<String>,
-    pub tag_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +33,6 @@ pub struct RecordingDetail {
     #[serde(flatten)]
     pub recording: Recording,
     pub categories: Vec<Category>,
-    pub tags: Vec<Tag>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -48,7 +45,6 @@ pub fn router() -> Router<AppState> {
                 .delete(delete_recording),
         )
         .route("/api/recordings/{id}/categories", post(assign_categories))
-        .route("/api/recordings/{id}/tags", post(assign_tags))
 }
 
 async fn list_recordings(
@@ -73,15 +69,8 @@ async fn list_recordings(
         joins.push_str(" JOIN recording_categories rc ON r.id = rc.recording_id");
         where_clauses.push("rc.category_id = ?".to_string());
     }
-    if params.tag_id.is_some() {
-        joins.push_str(" JOIN recording_tags rt ON r.id = rt.recording_id");
-        where_clauses.push("rt.tag_id = ?".to_string());
-    }
     if search_pattern.is_some() {
         where_clauses.push("(r.title LIKE ? OR r.description LIKE ?)".to_string());
-    }
-    if params.source.is_some() {
-        where_clauses.push("r.source = ?".to_string());
     }
 
     count_sql.push_str(&joins);
@@ -102,14 +91,8 @@ async fn list_recordings(
             if let Some(ref cid) = params.category_id {
                 q = q.bind(cid);
             }
-            if let Some(ref tid) = params.tag_id {
-                q = q.bind(tid);
-            }
             if let Some(ref pat) = search_pattern {
                 q = q.bind(pat).bind(pat); // bound twice for title + description
-            }
-            if let Some(ref src) = params.source {
-                q = q.bind(src);
             }
             q
         }};
@@ -149,17 +132,9 @@ async fn get_recording(
     .fetch_all(&state.db)
     .await?;
 
-    let tags = sqlx::query_as::<_, Tag>(
-        "SELECT t.* FROM tags t JOIN recording_tags rt ON t.id = rt.tag_id WHERE rt.recording_id = ?1",
-    )
-    .bind(&id)
-    .fetch_all(&state.db)
-    .await?;
-
     Ok(Json(RecordingDetail {
         recording,
         categories,
-        tags,
     }))
 }
 
@@ -250,37 +225,6 @@ async fn assign_categories(
         sqlx::query("INSERT INTO recording_categories (recording_id, category_id) VALUES (?1, ?2)")
             .bind(&id)
             .bind(category_id)
-            .execute(&mut *tx)
-            .await?;
-    }
-
-    tx.commit().await?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-async fn assign_tags(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(body): Json<AssignIdsRequest>,
-) -> Result<StatusCode, AppError> {
-    // Verify recording exists
-    sqlx::query("SELECT id FROM recordings WHERE id = ?1")
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Recording not found".to_string()))?;
-
-    let mut tx = state.db.begin().await?;
-
-    sqlx::query("DELETE FROM recording_tags WHERE recording_id = ?1")
-        .bind(&id)
-        .execute(&mut *tx)
-        .await?;
-
-    for tag_id in &body.ids {
-        sqlx::query("INSERT INTO recording_tags (recording_id, tag_id) VALUES (?1, ?2)")
-            .bind(&id)
-            .bind(tag_id)
             .execute(&mut *tx)
             .await?;
     }

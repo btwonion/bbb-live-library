@@ -9,10 +9,6 @@ interface RecordingCardProps {
   recording: Recording;
 }
 
-function sourceLabel(source: string): string {
-  return source === "live_capture" ? "Live" : "Import";
-}
-
 export function RecordingCard({ recording }: RecordingCardProps) {
   const date = new Date(recording.created_at).toLocaleDateString();
 
@@ -46,10 +42,7 @@ export function RecordingCard({ recording }: RecordingCardProps) {
         <h3 className="line-clamp-2 text-sm font-medium leading-snug">
           {recording.title}
         </h3>
-        <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline" className="text-xs">
-            {sourceLabel(recording.source)}
-          </Badge>
+        <div className="mt-1.5 text-xs text-muted-foreground">
           <span>{date}</span>
         </div>
       </div>

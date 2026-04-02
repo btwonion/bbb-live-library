@@ -2,10 +2,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  CalendarClock,
   Film,
   HardDrive,
-  Radio,
 } from "lucide-react";
 import { getStats } from "@/api/stats";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -39,10 +37,6 @@ export default function DashboardPage() {
   });
 
   const stats = statsQuery.data;
-  const liveCount =
-    stats?.by_source.find((s) => s.source === "live_capture")?.count ?? 0;
-  const importCount =
-    stats?.by_source.find((s) => s.source === "bbb_import")?.count ?? 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -50,13 +44,13 @@ export default function DashboardPage() {
 
       {/* Stats row */}
       {statsQuery.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-lg" />
           ))}
         </div>
       ) : stats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <StatsCard
             icon={Film}
             label="Total Recordings"
@@ -66,16 +60,6 @@ export default function DashboardPage() {
             icon={HardDrive}
             label="Total Duration"
             value={formatDuration(stats.total_duration_seconds)}
-          />
-          <StatsCard
-            icon={Radio}
-            label="Live Captures"
-            value={liveCount}
-          />
-          <StatsCard
-            icon={CalendarClock}
-            label="BBB Imports"
-            value={importCount}
           />
         </div>
       ) : null}

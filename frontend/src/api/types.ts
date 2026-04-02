@@ -16,19 +16,12 @@ export interface Recording {
 
 export interface RecordingDetail extends Recording {
   categories: Category[];
-  tags: Tag[];
 }
 
 export interface Category {
   id: string;
   name: string;
   description: string | null;
-  created_at: string;
-}
-
-export interface Tag {
-  id: string;
-  name: string;
   created_at: string;
 }
 
@@ -58,13 +51,7 @@ export interface StatsResponse {
   recording_count: number;
   total_duration_seconds: number;
   total_size_bytes: number;
-  by_source: SourceCount[];
   by_category: CategoryCount[];
-}
-
-export interface SourceCount {
-  source: string;
-  count: number;
 }
 
 export interface CategoryCount {
@@ -118,10 +105,6 @@ export interface UpdateCategoryRequest {
   description?: string;
 }
 
-export interface CreateTagRequest {
-  name: string;
-}
-
 export interface ImportUrlRequest {
   url: string;
   title?: string;
@@ -131,9 +114,7 @@ export interface RecordingListParams {
   page?: number;
   per_page?: number;
   search?: string;
-  source?: string;
   category_id?: string;
-  tag_id?: string;
 }
 
 export interface PaginationParams {

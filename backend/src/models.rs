@@ -48,17 +48,3 @@ pub struct RecordingCategory {
     pub recording_id: String,
     pub category_id: String,
 }
-
-#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
-    pub created_at: NaiveDateTime,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
-pub struct RecordingTag {
-    pub recording_id: String,
-    pub tag_id: String,
-}

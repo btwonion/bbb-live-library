@@ -43,13 +43,6 @@ export function assignCategories(id: string, data: AssignIdsRequest) {
   });
 }
 
-export function assignTags(id: string, data: AssignIdsRequest) {
-  return apiFetch<void>(`/api/recordings/${id}/tags`, {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
 export function getStreamUrl(id: string) {
   return `/api/recordings/${id}/stream`;
 }
