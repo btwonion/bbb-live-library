@@ -11,7 +11,6 @@ export default function SettingsPage() {
   useDocumentTitle("Settings");
 
   const [bbbUrl, setBbbUrl] = useState("");
-  const [recordId, setRecordId] = useState("");
   const [title, setTitle] = useState("");
   const [importedTitle, setImportedTitle] = useState<string | null>(null);
 
@@ -21,7 +20,6 @@ export default function SettingsPage() {
       setImportedTitle(data.title);
       toast.success(`Imported: ${data.title}`);
       setBbbUrl("");
-      setRecordId("");
       setTitle("");
     },
   });
@@ -38,8 +36,7 @@ export default function SettingsPage() {
         </div>
         <p className="text-sm text-muted-foreground">
           Import a recording from a public BigBlueButton server. Paste a full
-          playback URL, or provide the server base URL and recording ID
-          separately.
+          playback URL.
         </p>
 
         <div className="flex flex-col gap-3">
@@ -50,20 +47,6 @@ export default function SettingsPage() {
               placeholder="https://bbb.example.com/playback/presentation/2.3/record-id"
               value={bbbUrl}
               onChange={(e) => setBbbUrl(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Full playback URL, or server base URL if recording ID is provided
-              below.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="record-id" className="text-sm font-medium">Recording ID (optional)</label>
-            <Input
-              id="record-id"
-              placeholder="abc123-def456-..."
-              value={recordId}
-              onChange={(e) => setRecordId(e.target.value)}
             />
           </div>
 
@@ -83,7 +66,6 @@ export default function SettingsPage() {
                 setImportedTitle(null);
                 importMutation.mutate({
                   url: bbbUrl,
-                  record_id: recordId || undefined,
                   title: title || undefined,
                 });
               }}

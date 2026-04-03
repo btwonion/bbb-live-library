@@ -61,7 +61,6 @@ export interface CategoryCount {
 
 export interface ImportPublicBbbRequest {
   url: string;
-  record_id?: string;
   title?: string;
 }
 

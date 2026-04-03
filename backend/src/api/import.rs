@@ -17,7 +17,6 @@ pub struct ImportUrlRequest {
 #[derive(Debug, Deserialize)]
 pub struct ImportPublicBbbRequest {
     pub url: String,
-    pub record_id: Option<String>,
     pub title: Option<String>,
 }
 
@@ -52,14 +51,8 @@ async fn import_public_bbb(
         return Err(AppError::BadRequest("URL is required".to_string()));
     }
 
-    let (server_url, record_id) = if let Some(ref rid) = body.record_id {
-        // url is the server base URL, record_id is provided explicitly
-        (body.url.clone(), rid.clone())
-    } else {
-        // url is a full BBB playback URL — parse it
-        public::parse_bbb_url(&body.url)
-            .map_err(|e| AppError::BadRequest(format!("Invalid BBB URL: {e}")))?
-    };
+    let (server_url, record_id) = public::parse_bbb_url(&body.url)
+        .map_err(|e| AppError::BadRequest(format!("Invalid BBB URL: {e}")))?;
 
     let recording = importer::import_public_bbb(
         &state.db,
