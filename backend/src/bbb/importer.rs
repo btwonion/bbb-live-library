@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::config::AppConfig;
@@ -25,6 +26,12 @@ pub async fn import_from_url(
     let mut file_size = download_file(url, Path::new(&dest))
         .await
         .context("Failed to download video from URL")?;
+
+    let hash = compute_file_hash(&dest).await?;
+    if is_duplicate_hash(db, &hash).await? {
+        let _ = tokio::fs::remove_file(&dest).await;
+        anyhow::bail!("A recording with the same file content has already been imported");
+    }
 
     if ext == "mp4" {
         if let Err(err) = faststart_mp4(&config.capture.ffmpeg_path, &dest).await {
@@ -51,8 +58,8 @@ pub async fn import_from_url(
     let title = title.unwrap_or("Imported Recording");
 
     let recording = sqlx::query_as::<_, Recording>(
-        "INSERT INTO recordings (id, title, file_path, thumbnail_path, duration_seconds, file_size_bytes, format, source, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'url_import', datetime('now'), datetime('now'))
+        "INSERT INTO recordings (id, title, file_path, thumbnail_path, duration_seconds, file_size_bytes, format, source, file_hash, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'url_import', ?8, datetime('now'), datetime('now'))
          RETURNING *",
     )
     .bind(&id)
@@ -62,6 +69,7 @@ pub async fn import_from_url(
     .bind(duration)
     .bind(file_size as i64)
     .bind(ext)
+    .bind(&hash)
     .fetch_one(db)
     .await
     .context("Failed to insert recording into database")?;
@@ -77,19 +85,6 @@ pub async fn import_public_bbb(
     record_id: &str,
     title_override: Option<&str>,
 ) -> Result<Recording> {
-    // Check for duplicate by bbb_meeting_id
-    let exists = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM recordings WHERE bbb_meeting_id = ?1",
-    )
-    .bind(record_id)
-    .fetch_one(db)
-    .await
-    .unwrap_or(0);
-
-    if exists > 0 {
-        anyhow::bail!("Recording with BBB ID '{record_id}' has already been imported");
-    }
-
     let resolved = resolve_public_recording(server_url, record_id).await?;
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -101,6 +96,12 @@ pub async fn import_public_bbb(
     let mut file_size = download_file(&resolved.video_url, Path::new(&dest))
         .await
         .context("Failed to download BBB recording video")?;
+
+    let hash = compute_file_hash(&dest).await?;
+    if is_duplicate_hash(db, &hash).await? {
+        let _ = tokio::fs::remove_file(&dest).await;
+        anyhow::bail!("A recording with the same file content has already been imported");
+    }
 
     if ext == "mp4" {
         if let Err(err) = faststart_mp4(&config.capture.ffmpeg_path, &dest).await {
@@ -127,7 +128,7 @@ pub async fn import_public_bbb(
     let title = title_override.unwrap_or(&resolved.meeting_name);
 
     let recording = sqlx::query_as::<_, Recording>(
-        "INSERT INTO recordings (id, title, file_path, thumbnail_path, duration_seconds, file_size_bytes, format, source, bbb_meeting_id, created_at, updated_at)
+        "INSERT INTO recordings (id, title, file_path, thumbnail_path, duration_seconds, file_size_bytes, format, source, file_hash, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'bbb_public', ?8, datetime('now'), datetime('now'))
          RETURNING *",
     )
@@ -138,7 +139,7 @@ pub async fn import_public_bbb(
     .bind(duration)
     .bind(file_size as i64)
     .bind(ext)
-    .bind(record_id)
+    .bind(&hash)
     .fetch_one(db)
     .await
     .context("Failed to insert recording into database")?;
@@ -241,6 +242,27 @@ async fn faststart_mp4(ffmpeg_path: &str, file_path: &str) -> Result<()> {
         .context("Failed to replace file with faststart version")?;
 
     Ok(())
+}
+
+/// Computes the SHA-256 hash of a file, returning a hex string.
+async fn compute_file_hash(path: &str) -> Result<String> {
+    let data = tokio::fs::read(path)
+        .await
+        .context("Failed to read file for hashing")?;
+    let hash = Sha256::digest(&data);
+    Ok(hash.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Checks whether a recording with the given file hash already exists.
+async fn is_duplicate_hash(db: &SqlitePool, hash: &str) -> Result<bool> {
+    let count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM recordings WHERE file_hash = ?1",
+    )
+    .bind(hash)
+    .fetch_one(db)
+    .await
+    .unwrap_or(0);
+    Ok(count > 0)
 }
 
 fn url_extension(url: &str) -> Option<&str> {

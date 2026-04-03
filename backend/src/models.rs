@@ -28,7 +28,7 @@ pub struct Recording {
     pub file_size_bytes: Option<i64>,
     pub format: String,
     pub source: String,
-    pub bbb_meeting_id: Option<String>,
+    pub file_hash: Option<String>,
     pub schedule_id: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,

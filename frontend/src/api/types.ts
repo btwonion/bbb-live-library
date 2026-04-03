@@ -8,7 +8,7 @@ export interface Recording {
   file_size_bytes: number | null;
   format: string;
   source: string;
-  bbb_meeting_id: string | null;
+  file_hash: string | null;
   schedule_id: string | null;
   created_at: string;
   updated_at: string;
