@@ -35,7 +35,11 @@ COPY config.docker.toml /app/config.toml
 
 RUN mkdir -p /data/recordings/thumbs
 
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 8080
 VOLUME ["/data"]
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/app/bbb-live-library"]

@@ -4,10 +4,11 @@ port = 8080
 frontend_dir = "frontend/dist"
 
 [database]
-url = "sqlite:bbb-library.db"
+url = "sqlite:data/bbb-library.db"
 
 [capture]
 storage_dir = "data/recordings"
 ffmpeg_path = "ffmpeg"
 output_format = "mp4"
 retry_interval_secs = 15
+recorder_script_path = "recorder/record.js"

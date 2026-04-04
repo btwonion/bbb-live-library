@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use super::common::{finalize_recording, set_schedule_status};
+use super::common::{finalize_recording, graceful_stop_ffmpeg, set_schedule_status};
 use crate::config::AppConfig;
 use crate::models::Schedule;
 
@@ -88,8 +88,8 @@ async fn run_recording(
             result.context("Failed to wait for ffmpeg")?
         }
         _ = cancelled => {
-            tracing::warn!(schedule_id = %schedule.id, "Recording cancelled, killing ffmpeg");
-            let _ = child.kill().await;
+            tracing::warn!(schedule_id = %schedule.id, "Recording cancelled, stopping ffmpeg gracefully");
+            graceful_stop_ffmpeg(&mut child).await;
             // Try to finalize partial recording
             finalize_recording(db, config, schedule, &id, &filename, &output_path).await?;
             return Ok(());

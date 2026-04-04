@@ -1,9 +1,50 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use sqlx::SqlitePool;
 
 use crate::bbb::importer::{generate_thumbnail, get_duration};
 use crate::config::AppConfig;
 use crate::models::Schedule;
+
+/// Kills a child process with SIGKILL, logging any errors.
+pub(super) async fn kill_process(name: &str, child: &mut tokio::process::Child) {
+    if let Err(err) = child.kill().await {
+        tracing::debug!("Failed to kill {name}: {err}");
+    }
+}
+
+/// Gracefully stops an ffmpeg process by sending SIGINT, waiting up to 5 seconds
+/// for it to write the moov atom and exit cleanly, then falling back to SIGKILL.
+pub(super) async fn graceful_stop_ffmpeg(child: &mut tokio::process::Child) {
+    let Some(pid) = child.id() else {
+        tracing::debug!("ffmpeg already exited, no PID available");
+        return;
+    };
+
+    if let Err(err) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGINT) {
+        tracing::warn!("Failed to send SIGINT to ffmpeg (pid {pid}): {err}");
+        kill_process("ffmpeg", child).await;
+        return;
+    }
+
+    tracing::debug!("Sent SIGINT to ffmpeg (pid {pid}), waiting for graceful exit");
+
+    match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
+        Ok(Ok(status)) => {
+            tracing::debug!("ffmpeg exited gracefully with status {status}");
+        }
+        Ok(Err(err)) => {
+            tracing::warn!("Error waiting for ffmpeg: {err}");
+        }
+        Err(_) => {
+            tracing::warn!("ffmpeg did not exit within 5s after SIGINT, sending SIGKILL");
+            kill_process("ffmpeg", child).await;
+        }
+    }
+}
 
 /// Finalizes a recording by collecting metadata, inserting a DB row, and marking the schedule completed.
 pub async fn finalize_recording(

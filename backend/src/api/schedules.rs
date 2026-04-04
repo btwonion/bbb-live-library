@@ -4,10 +4,31 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
 
+use chrono::DateTime;
+
 use crate::api::{PaginatedResponse, PaginationParams};
 use crate::error::AppError;
 use crate::models::Schedule;
 use crate::AppState;
+
+/// Normalizes a datetime string to `YYYY-MM-DD HH:MM:SS` format.
+///
+/// Accepts ISO 8601 (e.g. `2026-04-03T14:00:00.000Z`) or the target format itself.
+fn normalize_datetime(input: &str) -> Result<String, AppError> {
+    // Try ISO 8601 / RFC 3339 first
+    if let Ok(dt) = DateTime::parse_from_rfc3339(input) {
+        return Ok(dt.naive_utc().format("%Y-%m-%d %H:%M:%S").to_string());
+    }
+
+    // Try the target format (already normalized)
+    if chrono::NaiveDateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S").is_ok() {
+        return Ok(input.to_string());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Invalid datetime format: {input}. Expected ISO 8601 or YYYY-MM-DD HH:MM:SS"
+    )))
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateScheduleRequest {
@@ -83,6 +104,13 @@ async fn create_schedule(
         ));
     }
 
+    let start_time = normalize_datetime(&body.start_time)?;
+    let end_time = body
+        .end_time
+        .as_deref()
+        .map(normalize_datetime)
+        .transpose()?;
+
     let id = uuid::Uuid::new_v4().to_string();
     let bot_name = body.bot_name.unwrap_or_else(|| "Recorder".to_string());
 
@@ -94,8 +122,8 @@ async fn create_schedule(
     .bind(&id)
     .bind(&body.title)
     .bind(&stream_url)
-    .bind(&body.start_time)
-    .bind(&body.end_time)
+    .bind(&start_time)
+    .bind(&end_time)
     .bind(&body.recurrence)
     .bind(&room_url)
     .bind(&bot_name)
@@ -123,6 +151,17 @@ async fn update_schedule(
     Path(id): Path<String>,
     Json(body): Json<UpdateScheduleRequest>,
 ) -> Result<Json<Schedule>, AppError> {
+    let start_time = body
+        .start_time
+        .as_deref()
+        .map(normalize_datetime)
+        .transpose()?;
+    let end_time = body
+        .end_time
+        .as_deref()
+        .map(normalize_datetime)
+        .transpose()?;
+
     let result = sqlx::query(
         "UPDATE schedules SET
             title = COALESCE(?1, title),
@@ -138,8 +177,8 @@ async fn update_schedule(
     )
     .bind(&body.title)
     .bind(&body.stream_url)
-    .bind(&body.start_time)
-    .bind(&body.end_time)
+    .bind(&start_time)
+    .bind(&end_time)
     .bind(&body.recurrence)
     .bind(body.enabled)
     .bind(&body.room_url)

@@ -2,3 +2,4 @@ target
 data
 .playwright-mcp
 bbb-library.db*
+node_modules

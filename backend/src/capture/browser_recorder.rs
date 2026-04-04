@@ -8,7 +8,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use super::common::{finalize_recording, set_schedule_status};
+use super::common::{finalize_recording, graceful_stop_ffmpeg, kill_process, set_schedule_status};
 use crate::config::AppConfig;
 use crate::models::Schedule;
 
@@ -33,55 +33,6 @@ pub fn start_browser_recording(
             }
         }
     })
-}
-
-/// Polls a BBB room URL until the meeting appears to be active.
-async fn poll_until_meeting_active(room_url: &str, timeout: Duration) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .timeout(Duration::from_secs(10))
-        .build()
-        .context("Failed to build HTTP client")?;
-
-    let deadline = tokio::time::Instant::now() + timeout;
-
-    loop {
-        if tokio::time::Instant::now() >= deadline {
-            bail!("Timed out waiting for meeting to become active at {room_url}");
-        }
-
-        match client.get(room_url).send().await {
-            Ok(resp) => {
-                if let Ok(body) = resp.text().await {
-                    let body_lower = body.to_lowercase();
-                    // Meeting is likely active if we see a join button or no "not started" message
-                    let has_join_indicator = body_lower.contains("join-btn")
-                        || body_lower.contains("join_name")
-                        || body_lower.contains("type=\"submit\"")
-                        || body_lower.contains("join meeting");
-                    let has_not_started = body_lower.contains("not started")
-                        || body_lower.contains("not running")
-                        || body_lower.contains("meeting hasn't started")
-                        || body_lower.contains("wait for moderator");
-
-                    if has_join_indicator && !has_not_started {
-                        tracing::info!("Meeting appears active at {room_url}");
-                        return Ok(());
-                    }
-
-                    tracing::debug!(
-                        "Meeting not yet active at {room_url} (join={has_join_indicator}, not_started={has_not_started})"
-                    );
-                }
-            }
-            Err(err) => {
-                tracing::debug!("Failed to poll room URL {room_url}: {err}");
-            }
-        }
-
-        tokio::time::sleep(Duration::from_secs(10)).await;
-    }
 }
 
 /// Derives a unique X display number from the schedule ID.
@@ -109,13 +60,6 @@ fn compute_duration_secs(schedule: &Schedule) -> Option<i64> {
     })
 }
 
-/// Kills a child process, logging any errors.
-async fn kill_process(name: &str, child: &mut tokio::process::Child) {
-    if let Err(err) = child.kill().await {
-        tracing::debug!("Failed to kill {name}: {err}");
-    }
-}
-
 async fn run_browser_recording(
     db: &SqlitePool,
     config: &AppConfig,
@@ -124,7 +68,6 @@ async fn run_browser_recording(
 ) -> Result<()> {
     let display_num = display_number_for_schedule(&schedule.id);
     let x_display = format!(":{display_num}");
-    let pulse_runtime = format!("/tmp/pulse-bbb-{display_num}");
     let duration_secs = compute_duration_secs(schedule);
 
     tracing::info!(
@@ -133,13 +76,6 @@ async fn run_browser_recording(
         x_display = %x_display,
         "Starting browser recording pipeline"
     );
-
-    // Poll until the meeting is active (up to 10 minutes or until end_time)
-    let poll_timeout = duration_secs
-        .map(|d| Duration::from_secs(d as u64))
-        .unwrap_or(Duration::from_secs(600));
-
-    poll_until_meeting_active(&schedule.room_url, poll_timeout).await?;
 
     // --- Step 1: Start Xvfb ---
     let mut xvfb = tokio::process::Command::new("Xvfb")
@@ -161,37 +97,22 @@ async fn run_browser_recording(
 
     tracing::debug!(schedule_id = %schedule.id, x_display = %x_display, "Xvfb started");
 
-    // --- Step 2: Start PulseAudio with virtual sink ---
-    // Create runtime dir for PulseAudio
-    let _ = tokio::fs::create_dir_all(&pulse_runtime).await;
-
-    let _ = tokio::process::Command::new("pulseaudio")
-        .args(["--start", "--exit-idle-time=-1"])
-        .env("DISPLAY", &x_display)
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await;
-
-    // Load virtual audio sink
+    // --- Step 2: Set up virtual audio sink via pactl (works with PulseAudio or PipeWire) ---
+    // Use a per-recording sink name to avoid collisions and not touch the system default.
+    let sink_name = format!("bbb_sink_{display_num}");
+    let sink_monitor = format!("{sink_name}.monitor");
     let _ = tokio::process::Command::new("pactl")
-        .args(["load-module", "module-null-sink", "sink_name=virtual_sink"])
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
+        .args([
+            "load-module",
+            "module-null-sink",
+            &format!("sink_name={sink_name}"),
+        ])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
         .await;
 
-    let _ = tokio::process::Command::new("pactl")
-        .args(["set-default-sink", "virtual_sink"])
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await;
-
-    tracing::debug!(schedule_id = %schedule.id, "PulseAudio configured");
+    tracing::debug!(schedule_id = %schedule.id, sink = %sink_name, "Virtual audio sink created");
 
     // --- Step 3: Spawn recorder script ---
     let recorder_script = config
@@ -218,7 +139,8 @@ async fn run_browser_recording(
     let mut recorder = tokio::process::Command::new("node")
         .args(&recorder_args)
         .env("DISPLAY", &x_display)
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
+        .env("PULSE_SINK", &sink_name)
+        .env_remove("WAYLAND_DISPLAY")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -240,8 +162,10 @@ async fn run_browser_recording(
         });
     }
 
-    // Wait for RECORDING_STARTED with timeout
-    let started = tokio::time::timeout(Duration::from_secs(120), async {
+    // Wait for RECORDING_STARTED — allow enough time for the recorder's retry loop
+    // to wait for the meeting to become active (up to the schedule duration, or 10 min default).
+    let join_timeout_secs = duration_secs.map(|d| d as u64).unwrap_or(600);
+    let started = tokio::time::timeout(Duration::from_secs(join_timeout_secs), async {
         while let Some(line) = reader.next_line().await? {
             if line.trim() == "RECORDING_STARTED" {
                 return Ok(true);
@@ -284,11 +208,11 @@ async fn run_browser_recording(
         "-f".to_string(),
         "pulse".to_string(),
         "-i".to_string(),
-        "default".to_string(),
+        sink_monitor.clone(),
         "-c:v".to_string(),
-        "libx264".to_string(),
-        "-preset".to_string(),
-        "ultrafast".to_string(),
+        "mpeg4".to_string(),
+        "-q:v".to_string(),
+        "5".to_string(),
         "-c:a".to_string(),
         "aac".to_string(),
     ];
@@ -303,7 +227,6 @@ async fn run_browser_recording(
     let mut ffmpeg = tokio::process::Command::new(&config.capture.ffmpeg_path)
         .args(&ffmpeg_args)
         .env("DISPLAY", &x_display)
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -332,12 +255,12 @@ async fn run_browser_recording(
         }
         _ = recorder_stopped => {
             tracing::info!(schedule_id = %schedule.id, "Meeting ended, stopping ffmpeg");
-            kill_process("ffmpeg", &mut ffmpeg).await;
+            graceful_stop_ffmpeg(&mut ffmpeg).await;
             Ok(())
         }
         _ = token.cancelled() => {
             tracing::warn!(schedule_id = %schedule.id, "Browser recording cancelled");
-            kill_process("ffmpeg", &mut ffmpeg).await;
+            graceful_stop_ffmpeg(&mut ffmpeg).await;
             kill_process("recorder", &mut recorder).await;
             Ok(())
         }
@@ -347,15 +270,13 @@ async fn run_browser_recording(
     kill_process("recorder", &mut recorder).await;
     kill_process("xvfb", &mut xvfb).await;
 
-    // Kill PulseAudio for this session
-    let _ = tokio::process::Command::new("pulseaudio")
-        .args(["--kill"])
-        .env("XDG_RUNTIME_DIR", &pulse_runtime)
+    // Unload the virtual audio sink
+    let _ = tokio::process::Command::new("pactl")
+        .args(["unload-module", "module-null-sink"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await;
-
-    // Clean up pulse runtime dir
-    let _ = tokio::fs::remove_dir_all(&pulse_runtime).await;
 
     // Propagate ffmpeg errors before finalizing
     result?;
