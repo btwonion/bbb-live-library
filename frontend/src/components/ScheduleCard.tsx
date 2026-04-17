@@ -5,8 +5,8 @@ import type { Schedule } from "@/api/types";
 
 interface ScheduleCardProps {
   schedule: Schedule;
-  onEdit: (schedule: Schedule) => void;
-  onDelete: (schedule: Schedule) => void;
+  onEdit?: (schedule: Schedule) => void;
+  onDelete?: (schedule: Schedule) => void;
 }
 
 function statusBadge(status: string) {
@@ -76,24 +76,30 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => onEdit(schedule)}
-        >
-          <Edit2 className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => onDelete(schedule)}
-          disabled={isRecording}
-          title={isRecording ? "Cannot delete while recording" : "Delete schedule"}
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      </div>
+      {(onEdit || onDelete) && (
+        <div className="flex shrink-0 items-center gap-1">
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onEdit(schedule)}
+            >
+              <Edit2 className="size-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onDelete(schedule)}
+              disabled={isRecording}
+              title={isRecording ? "Cannot delete while recording" : "Delete schedule"}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
