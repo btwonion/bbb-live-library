@@ -4,6 +4,7 @@ import { Calendar, Clock, Edit2, FolderOpen, Link, Repeat, Trash2 } from "lucide
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listCategories } from "@/api/categories";
+import { useTimezone } from "@/hooks/useTimezone";
 import type { Schedule } from "@/api/types";
 
 interface ScheduleCardProps {
@@ -30,10 +31,14 @@ function statusBadge(status: string) {
   }
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+function formatDateTime(utcStr: string, timezone: string) {
+  // Backend stores times as naive UTC strings ("YYYY-MM-DD HH:MM:SS").
+  // Append "Z" to parse as UTC, then display in the configured timezone.
+  const normalized = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T") + "Z";
+  return new Date(normalized).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: timezone,
   });
 }
 
@@ -43,6 +48,7 @@ function truncate(str: string, maxLength: number) {
 
 export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) {
   const isRecording = schedule.status === "recording";
+  const timezone = useTimezone();
   const { data: categories } = useQuery({
     queryKey: ["categories"],
     queryFn: listCategories,
@@ -68,12 +74,12 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
           </span>
           <span className="inline-flex items-center gap-1">
             <Calendar className="size-3" />
-            {formatDateTime(schedule.start_time)}
+            {formatDateTime(schedule.start_time, timezone)}
           </span>
           {schedule.end_time && (
             <span className="inline-flex items-center gap-1">
               <Clock className="size-3" />
-              Until {formatDateTime(schedule.end_time)}
+              Until {formatDateTime(schedule.end_time, timezone)}
             </span>
           )}
           {schedule.recurrence && (

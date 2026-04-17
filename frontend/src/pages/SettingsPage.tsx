@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Download, FileText, CheckCircle } from "lucide-react";
+import { Clock, Download, FileText, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { importPublicBbb } from "@/api/import";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useTimezone } from "@/hooks/useTimezone";
 
 export default function SettingsPage() {
   useDocumentTitle("Settings");
+  const timezone = useTimezone();
 
   const [bbbUrl, setBbbUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -93,6 +95,30 @@ export default function SettingsPage() {
               : "Import failed"}
           </p>
         )}
+      </section>
+
+      {/* Timezone */}
+      <section className="flex flex-col gap-4 rounded-lg border p-6">
+        <div className="flex items-center gap-3">
+          <Clock className="size-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Timezone</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Schedule times are displayed and interpreted in this timezone.
+          Configured via{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+            timezone
+          </code>{" "}
+          in{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+            config.toml
+          </code>
+          .
+        </p>
+        <div className="flex items-center gap-2 rounded-md border bg-muted/50 p-4 text-sm font-medium">
+          <Clock className="size-4 text-muted-foreground" />
+          {timezone}
+        </div>
       </section>
 
       {/* Configuration */}

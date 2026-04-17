@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { useTimezone } from "@/hooks/useTimezone";
 import type { Schedule, CreateScheduleRequest, UpdateScheduleRequest } from "@/api/types";
 
 interface ScheduleFormProps {
@@ -34,9 +35,33 @@ interface FormFieldsProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** Formats a Date as a naive "YYYY-MM-DD HH:MM:SS" string in the given IANA timezone. */
+function formatNaive(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
+/** Parses a naive UTC datetime string from the backend into a Date for the DateTimePicker. */
+function parseUtcNaive(utcStr: string): Date {
+  const normalized = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T") + "Z";
+  return new Date(normalized);
+}
+
 function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
   const isEdit = !!schedule;
   const queryClient = useQueryClient();
+  const timezone = useTimezone();
 
   const [title, setTitle] = useState(schedule?.title ?? "");
   const [recordingType, setRecordingType] = useState<"rtmp" | "room">(
@@ -46,10 +71,10 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
   const [roomUrl, setRoomUrl] = useState(schedule?.room_url ?? "");
   const [botName, setBotName] = useState(schedule?.bot_name ?? "");
   const [startTime, setStartTime] = useState<Date | undefined>(
-    schedule ? new Date(schedule.start_time) : undefined,
+    schedule ? parseUtcNaive(schedule.start_time) : undefined,
   );
   const [endTime, setEndTime] = useState<Date | undefined>(
-    schedule?.end_time ? new Date(schedule.end_time) : undefined,
+    schedule?.end_time ? parseUtcNaive(schedule.end_time) : undefined,
   );
   const [recurrence, setRecurrence] = useState(schedule?.recurrence ?? "");
   const [startOffset, setStartOffset] = useState(schedule?.start_offset_secs ?? 30);
@@ -95,8 +120,8 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
       stream_url: recordingType === "rtmp" ? streamUrl : "",
       room_url: recordingType === "room" ? roomUrl : "",
       bot_name: recordingType === "room" ? botName || undefined : undefined,
-      start_time: startTime.toISOString(),
-      end_time: endTime ? endTime.toISOString() : undefined,
+      start_time: formatNaive(startTime, timezone),
+      end_time: endTime ? formatNaive(endTime, timezone) : undefined,
       recurrence: recurrence || undefined,
       start_offset_secs: startOffset,
       end_offset_secs: endOffset,

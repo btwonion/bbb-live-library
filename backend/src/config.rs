@@ -12,6 +12,7 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub frontend_dir: Option<String>,
+    pub timezone: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -28,9 +29,26 @@ pub struct CaptureConfig {
     pub recorder_script_path: Option<String>,
 }
 
+impl ServerConfig {
+    /// Returns the configured timezone, defaulting to UTC.
+    pub fn timezone(&self) -> chrono_tz::Tz {
+        self.timezone
+            .as_deref()
+            .and_then(|s| s.parse::<chrono_tz::Tz>().ok())
+            .unwrap_or(chrono_tz::Tz::UTC)
+    }
+}
+
 /// Loads the application configuration from a TOML file at the given path.
 pub fn load_config(path: &str) -> anyhow::Result<AppConfig> {
     let content = std::fs::read_to_string(path)?;
     let config: AppConfig = toml::from_str(&content)?;
+
+    // Validate timezone if provided
+    if let Some(ref tz) = config.server.timezone {
+        tz.parse::<chrono_tz::Tz>()
+            .map_err(|_| anyhow::anyhow!("Invalid timezone in config: {tz}"))?;
+    }
+
     Ok(config)
 }

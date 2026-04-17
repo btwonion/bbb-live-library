@@ -4,7 +4,8 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Deserializer};
 
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDateTime, TimeZone};
+use chrono_tz::Tz;
 
 use crate::api::PaginatedResponse;
 use crate::error::AppError;
@@ -36,24 +37,30 @@ where
     Ok(Some(Option::deserialize(deserializer)?))
 }
 
-/// Normalizes a datetime string to `YYYY-MM-DD HH:MM:SS` format.
+/// Normalizes a datetime string to `YYYY-MM-DD HH:MM:SS` in UTC.
 ///
-/// Accepts ISO 8601 (e.g. `2026-04-03T14:00:00.000Z`) or the target format itself.
-fn normalize_datetime(input: &str) -> Result<String, AppError> {
-    // Try ISO 8601 / RFC 3339 first
+/// Accepts ISO 8601 (e.g. `2026-04-03T14:00:00.000Z`) or the naive format `YYYY-MM-DD HH:MM:SS`.
+/// Naive datetimes are interpreted in the given timezone and converted to UTC.
+fn normalize_datetime(input: &str, tz: Tz) -> Result<String, AppError> {
+    // Try ISO 8601 / RFC 3339 first (already has offset info)
     if let Ok(dt) = DateTime::parse_from_rfc3339(input) {
         return Ok(dt.naive_utc().format("%Y-%m-%d %H:%M:%S").to_string());
     }
 
-    // Try the target format (already normalized)
-    if chrono::NaiveDateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S").is_ok() {
-        return Ok(input.to_string());
+    // Try naive format — interpret in the configured timezone
+    if let Ok(naive) = NaiveDateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S") {
+        let local = tz
+            .from_local_datetime(&naive)
+            .single()
+            .ok_or_else(|| AppError::BadRequest(format!("Ambiguous or invalid datetime in timezone {tz}: {input}")))?;
+        return Ok(local.naive_utc().format("%Y-%m-%d %H:%M:%S").to_string());
     }
 
     Err(AppError::BadRequest(format!(
         "Invalid datetime format: {input}. Expected ISO 8601 or YYYY-MM-DD HH:MM:SS"
     )))
 }
+
 
 #[derive(Debug, Deserialize)]
 pub struct CreateScheduleRequest {
@@ -135,6 +142,7 @@ async fn create_schedule(
     State(state): State<AppState>,
     Json(body): Json<CreateScheduleRequest>,
 ) -> Result<(StatusCode, Json<Schedule>), AppError> {
+    let tz = state.config.server.timezone();
     let stream_url = body.stream_url.unwrap_or_default();
     let room_url = body.room_url.unwrap_or_default();
 
@@ -144,11 +152,11 @@ async fn create_schedule(
         ));
     }
 
-    let start_time = normalize_datetime(&body.start_time)?;
+    let start_time = normalize_datetime(&body.start_time, tz)?;
     let end_time = body
         .end_time
         .as_deref()
-        .map(normalize_datetime)
+        .map(|s| normalize_datetime(s, tz))
         .transpose()?;
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -196,15 +204,16 @@ async fn update_schedule(
     Path(id): Path<String>,
     Json(body): Json<UpdateScheduleRequest>,
 ) -> Result<Json<Schedule>, AppError> {
+    let tz = state.config.server.timezone();
     let start_time = body
         .start_time
         .as_deref()
-        .map(normalize_datetime)
+        .map(|s| normalize_datetime(s, tz))
         .transpose()?;
     let end_time = body
         .end_time
         .as_deref()
-        .map(normalize_datetime)
+        .map(|s| normalize_datetime(s, tz))
         .transpose()?;
 
     // Resolve category_id: None = don't change, Some(None) = clear, Some(Some(v)) = set
