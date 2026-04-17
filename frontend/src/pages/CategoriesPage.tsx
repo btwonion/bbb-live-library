@@ -37,11 +37,13 @@ export default function CategoriesPage() {
   const { data: categories, isLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: listCategories,
+    staleTime: 0,
   });
 
   const { data: stats } = useQuery({
     queryKey: ["stats"],
     queryFn: getStats,
+    staleTime: 0,
   });
 
   const countByName = useMemo(() => {
