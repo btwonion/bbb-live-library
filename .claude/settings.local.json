@@ -31,7 +31,8 @@
       "Bash(docker compose:*)",
       "mcp__playwright__browser_fill_form",
       "mcp__playwright__browser_close",
-      "mcp__github__issue_read"
+      "mcp__github__issue_read",
+      "mcp__playwright__browser_press_key"
     ]
   },
   "enabledPlugins": {

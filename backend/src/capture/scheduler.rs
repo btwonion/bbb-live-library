@@ -40,18 +40,24 @@ async fn check_schedules(
 ) -> Result<()> {
     let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // Find pending schedules that are due (start_time <= now)
+    // Find pending schedules that are due (start_time - offset <= now)
     let due_schedules = sqlx::query_as::<_, Schedule>(
-        "SELECT * FROM schedules WHERE enabled = 1 AND status = 'pending' AND start_time <= ?1",
+        "SELECT * FROM schedules WHERE enabled = 1 AND status = 'pending' AND datetime(start_time, '-' || start_offset_secs || ' seconds') <= ?1",
     )
     .bind(&now)
     .fetch_all(db)
     .await?;
 
     for schedule in &due_schedules {
-        // Check if already missed (end_time has passed)
+        // Check if already missed (end_time + offset has passed)
         if let Some(ref end_time) = schedule.end_time {
-            if end_time.as_str() < now.as_str() {
+            let effective_end = {
+                let end_dt = chrono::NaiveDateTime::parse_from_str(end_time, "%Y-%m-%d %H:%M:%S")
+                    .unwrap_or_default();
+                let offset = chrono::Duration::seconds(schedule.end_offset_secs);
+                (end_dt + offset).format("%Y-%m-%d %H:%M:%S").to_string()
+            };
+            if effective_end.as_str() < now.as_str() {
                 tracing::warn!(schedule_id = %schedule.id, "Schedule missed (end_time has passed)");
                 sqlx::query(
                     "UPDATE schedules SET status = 'missed', updated_at = datetime('now') WHERE id = ?1",

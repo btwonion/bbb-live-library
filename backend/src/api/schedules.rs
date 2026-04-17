@@ -2,14 +2,39 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use chrono::DateTime;
 
-use crate::api::{PaginatedResponse, PaginationParams};
+use crate::api::PaginatedResponse;
 use crate::error::AppError;
 use crate::models::Schedule;
 use crate::AppState;
+
+#[derive(Debug, Deserialize)]
+pub struct ScheduleListParams {
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
+    pub filter: Option<String>,
+}
+
+impl ScheduleListParams {
+    fn offset_limit(&self) -> (u32, u32) {
+        let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
+        let page = self.page.unwrap_or(1).max(1);
+        let offset = (page - 1) * per_page;
+        (offset, per_page)
+    }
+}
+
+/// Deserializes a doubly-optional field: absent → `None`, explicit null → `Some(None)`, value → `Some(Some(v))`.
+fn deserialize_optional_nullable<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
+}
 
 /// Normalizes a datetime string to `YYYY-MM-DD HH:MM:SS` format.
 ///
@@ -39,6 +64,9 @@ pub struct CreateScheduleRequest {
     pub recurrence: Option<String>,
     pub room_url: Option<String>,
     pub bot_name: Option<String>,
+    pub start_offset_secs: Option<i64>,
+    pub end_offset_secs: Option<i64>,
+    pub category_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +79,11 @@ pub struct UpdateScheduleRequest {
     pub enabled: Option<bool>,
     pub room_url: Option<String>,
     pub bot_name: Option<String>,
+    pub start_offset_secs: Option<i64>,
+    pub end_offset_secs: Option<i64>,
+    #[serde(deserialize_with = "deserialize_optional_nullable")]
+    #[serde(default)]
+    pub category_id: Option<Option<String>>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -66,22 +99,29 @@ pub fn router() -> Router<AppState> {
 
 async fn list_schedules(
     State(state): State<AppState>,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<ScheduleListParams>,
 ) -> Result<Json<PaginatedResponse<Schedule>>, AppError> {
     let (offset, limit) = params.offset_limit();
 
-    let total: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM schedules")
-            .fetch_one(&state.db)
-            .await?;
+    let filter_clause = match params.filter.as_deref() {
+        Some("active") => " WHERE (status IN ('pending', 'recording')) OR (recurrence IS NOT NULL AND enabled = 1)",
+        Some("past") => " WHERE (status IN ('completed', 'missed')) AND (recurrence IS NULL OR enabled = 0)",
+        _ => "",
+    };
 
-    let schedules = sqlx::query_as::<_, Schedule>(
-        "SELECT * FROM schedules ORDER BY start_time DESC LIMIT ?1 OFFSET ?2",
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&state.db)
-    .await?;
+    let count_sql = format!("SELECT COUNT(*) FROM schedules{filter_clause}");
+    let total: (i64,) = sqlx::query_as(&count_sql)
+        .fetch_one(&state.db)
+        .await?;
+
+    let list_sql = format!(
+        "SELECT * FROM schedules{filter_clause} ORDER BY start_time DESC LIMIT ?1 OFFSET ?2"
+    );
+    let schedules = sqlx::query_as::<_, Schedule>(&list_sql)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await?;
 
     Ok(Json(PaginatedResponse {
         data: schedules,
@@ -113,10 +153,12 @@ async fn create_schedule(
 
     let id = uuid::Uuid::new_v4().to_string();
     let bot_name = body.bot_name.unwrap_or_else(|| "Recorder".to_string());
+    let start_offset = body.start_offset_secs.unwrap_or(30);
+    let end_offset = body.end_offset_secs.unwrap_or(30);
 
     let schedule = sqlx::query_as::<_, Schedule>(
-        "INSERT INTO schedules (id, title, stream_url, start_time, end_time, recurrence, enabled, status, room_url, bot_name, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'pending', ?7, ?8, datetime('now'), datetime('now'))
+        "INSERT INTO schedules (id, title, stream_url, start_time, end_time, recurrence, enabled, status, room_url, bot_name, start_offset_secs, end_offset_secs, category_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'pending', ?7, ?8, ?9, ?10, ?11, datetime('now'), datetime('now'))
          RETURNING *",
     )
     .bind(&id)
@@ -127,6 +169,9 @@ async fn create_schedule(
     .bind(&body.recurrence)
     .bind(&room_url)
     .bind(&bot_name)
+    .bind(start_offset)
+    .bind(end_offset)
+    .bind(&body.category_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -162,6 +207,9 @@ async fn update_schedule(
         .map(normalize_datetime)
         .transpose()?;
 
+    // Resolve category_id: None = don't change, Some(None) = clear, Some(Some(v)) = set
+    let category_id_update: Option<Option<String>> = body.category_id;
+
     let result = sqlx::query(
         "UPDATE schedules SET
             title = COALESCE(?1, title),
@@ -172,8 +220,11 @@ async fn update_schedule(
             enabled = COALESCE(?6, enabled),
             room_url = COALESCE(?7, room_url),
             bot_name = COALESCE(?8, bot_name),
+            start_offset_secs = COALESCE(?9, start_offset_secs),
+            end_offset_secs = COALESCE(?10, end_offset_secs),
+            category_id = CASE WHEN ?11 THEN ?12 ELSE category_id END,
             updated_at = datetime('now')
-         WHERE id = ?9",
+         WHERE id = ?13",
     )
     .bind(&body.title)
     .bind(&body.stream_url)
@@ -183,12 +234,27 @@ async fn update_schedule(
     .bind(body.enabled)
     .bind(&body.room_url)
     .bind(&body.bot_name)
+    .bind(body.start_offset_secs)
+    .bind(body.end_offset_secs)
+    .bind(category_id_update.is_some()) // ?11: whether to update category_id
+    .bind(category_id_update.as_ref().and_then(|v| v.as_ref())) // ?12: new value (may be null)
     .bind(&id)
     .execute(&state.db)
     .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Schedule not found".to_string()));
+    }
+
+    // Reset status to pending if time/cron fields were changed (not while recording)
+    let time_changed = body.start_time.is_some() || body.end_time.is_some() || body.recurrence.is_some();
+    if time_changed {
+        sqlx::query(
+            "UPDATE schedules SET status = 'pending', updated_at = datetime('now') WHERE id = ?1 AND status IN ('completed', 'missed')",
+        )
+        .bind(&id)
+        .execute(&state.db)
+        .await?;
     }
 
     let schedule = sqlx::query_as::<_, Schedule>("SELECT * FROM schedules WHERE id = ?1")

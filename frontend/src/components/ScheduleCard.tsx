@@ -1,6 +1,9 @@
-import { Calendar, Clock, Edit2, Link, Repeat, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { Calendar, Clock, Edit2, FolderOpen, Link, Repeat, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { listCategories } from "@/api/categories";
 import type { Schedule } from "@/api/types";
 
 interface ScheduleCardProps {
@@ -40,6 +43,12 @@ function truncate(str: string, maxLength: number) {
 
 export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) {
   const isRecording = schedule.status === "recording";
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+    enabled: !!schedule.category_id,
+  });
+  const category = categories?.find((c) => c.id === schedule.category_id);
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
@@ -72,6 +81,15 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
               <Repeat className="size-3" />
               {schedule.recurrence}
             </span>
+          )}
+          {category && (
+            <RouterLink
+              to={`/recordings?category_id=${category.id}`}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <FolderOpen className="size-3" />
+              {category.name}
+            </RouterLink>
           )}
         </div>
       </div>

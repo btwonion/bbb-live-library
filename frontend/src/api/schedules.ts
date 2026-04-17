@@ -2,12 +2,12 @@ import { apiFetch } from "./client";
 import type {
   CreateScheduleRequest,
   PaginatedResponse,
-  PaginationParams,
   Schedule,
+  ScheduleListParams,
   UpdateScheduleRequest,
 } from "./types";
 
-export function listSchedules(params?: PaginationParams) {
+export function listSchedules(params?: ScheduleListParams) {
   const query = new URLSearchParams();
   if (params) {
     for (const [key, value] of Object.entries(params)) {

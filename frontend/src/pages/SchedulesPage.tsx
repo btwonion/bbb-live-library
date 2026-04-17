@@ -29,15 +29,21 @@ export default function SchedulesPage() {
 
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const page = Number(searchParams.get("page")) || 1;
+  const activePage = Number(searchParams.get("page")) || 1;
+  const pastPage = Number(searchParams.get("past_page")) || 1;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>();
   const [deletingSchedule, setDeletingSchedule] = useState<Schedule | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["schedules", { page, per_page: PER_PAGE }],
-    queryFn: () => listSchedules({ page, per_page: PER_PAGE }),
+  const { data: activeData, isLoading: activeLoading } = useQuery({
+    queryKey: ["schedules", { page: activePage, per_page: PER_PAGE, filter: "active" }],
+    queryFn: () => listSchedules({ page: activePage, per_page: PER_PAGE, filter: "active" }),
+  });
+
+  const { data: pastData, isLoading: pastLoading } = useQuery({
+    queryKey: ["schedules", { page: pastPage, per_page: PER_PAGE, filter: "past" }],
+    queryFn: () => listSchedules({ page: pastPage, per_page: PER_PAGE, filter: "past" }),
   });
 
   const deleteMutation = useMutation({
@@ -49,7 +55,8 @@ export default function SchedulesPage() {
     },
   });
 
-  const totalPages = data ? Math.ceil(data.total / PER_PAGE) : 0;
+  const activeTotalPages = activeData ? Math.ceil(activeData.total / PER_PAGE) : 0;
+  const pastTotalPages = pastData ? Math.ceil(pastData.total / PER_PAGE) : 0;
 
   function handleEdit(schedule: Schedule) {
     setEditingSchedule(schedule);
@@ -61,7 +68,7 @@ export default function SchedulesPage() {
     setFormOpen(true);
   }
 
-  function handlePageChange(p: number) {
+  function handleActivePageChange(p: number) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (p > 1) {
@@ -73,6 +80,21 @@ export default function SchedulesPage() {
     });
   }
 
+  function handlePastPageChange(p: number) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (p > 1) {
+        next.set("past_page", String(p));
+      } else {
+        next.delete("past_page");
+      }
+      return next;
+    });
+  }
+
+  const isEmpty = !activeLoading && !pastLoading &&
+    activeData?.data.length === 0 && pastData?.data.length === 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -83,7 +105,7 @@ export default function SchedulesPage() {
         </Button>
       </div>
 
-      {isLoading && (
+      {(activeLoading || pastLoading) && (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
@@ -91,7 +113,7 @@ export default function SchedulesPage() {
         </div>
       )}
 
-      {!isLoading && data && data.data.length === 0 && (
+      {isEmpty && (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-12 text-center">
           <CalendarClock className="size-10 text-muted-foreground" />
           <div>
@@ -107,9 +129,10 @@ export default function SchedulesPage() {
         </div>
       )}
 
-      {!isLoading && data && data.data.length > 0 && (
+      {!activeLoading && activeData && activeData.data.length > 0 && (
         <div className="space-y-3">
-          {data.data.map((schedule) => (
+          <h2 className="text-lg font-semibold">Active Schedules</h2>
+          {activeData.data.map((schedule) => (
             <ScheduleCard
               key={schedule.id}
               schedule={schedule}
@@ -117,15 +140,35 @@ export default function SchedulesPage() {
               onDelete={setDeletingSchedule}
             />
           ))}
+          {activeTotalPages > 1 && (
+            <Pagination
+              page={activePage}
+              totalPages={activeTotalPages}
+              onPageChange={handleActivePageChange}
+            />
+          )}
         </div>
       )}
 
-      {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
+      {!pastLoading && pastData && pastData.data.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-muted-foreground">Past Schedules</h2>
+          {pastData.data.map((schedule) => (
+            <ScheduleCard
+              key={schedule.id}
+              schedule={schedule}
+              onEdit={handleEdit}
+              onDelete={setDeletingSchedule}
+            />
+          ))}
+          {pastTotalPages > 1 && (
+            <Pagination
+              page={pastPage}
+              totalPages={pastTotalPages}
+              onPageChange={handlePastPageChange}
+            />
+          )}
+        </div>
       )}
 
       <ScheduleForm
