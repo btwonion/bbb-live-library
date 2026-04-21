@@ -39,11 +39,13 @@ export default function SchedulesPage() {
   const { data: activeData, isLoading: activeLoading } = useQuery({
     queryKey: ["schedules", { page: activePage, per_page: PER_PAGE, filter: "active" }],
     queryFn: () => listSchedules({ page: activePage, per_page: PER_PAGE, filter: "active" }),
+    refetchInterval: 30000,
   });
 
   const { data: pastData, isLoading: pastLoading } = useQuery({
     queryKey: ["schedules", { page: pastPage, per_page: PER_PAGE, filter: "past" }],
     queryFn: () => listSchedules({ page: pastPage, per_page: PER_PAGE, filter: "past" }),
+    refetchInterval: 30000,
   });
 
   const deleteMutation = useMutation({
