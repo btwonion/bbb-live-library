@@ -15,6 +15,9 @@ pub struct Schedule {
     pub status: String,
     pub room_url: String,
     pub bot_name: String,
+    pub start_offset_secs: i64,
+    pub end_offset_secs: i64,
+    pub category_id: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]

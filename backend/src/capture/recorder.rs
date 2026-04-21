@@ -51,13 +51,13 @@ async fn run_recording(
         "copy".to_string(),
     ];
 
-    // If end_time is set, limit duration with -t
+    // If end_time is set, limit duration with -t (including offsets)
     if let Some(ref end_time) = schedule.end_time {
         if let (Ok(start), Ok(end)) = (
             chrono::NaiveDateTime::parse_from_str(&schedule.start_time, "%Y-%m-%d %H:%M:%S"),
             chrono::NaiveDateTime::parse_from_str(end_time, "%Y-%m-%d %H:%M:%S"),
         ) {
-            let duration_secs = (end - start).num_seconds();
+            let duration_secs = (end - start).num_seconds() + schedule.start_offset_secs + schedule.end_offset_secs;
             if duration_secs > 0 {
                 args.push("-t".to_string());
                 args.push(duration_secs.to_string());
@@ -100,5 +100,10 @@ async fn run_recording(
         anyhow::bail!("ffmpeg exited with status {status}");
     }
 
-    finalize_recording(db, config, schedule, &id, &filename, &output_path).await
+    // If finalization fails (e.g. ffprobe, thumbnail), still mark as completed since the file exists
+    if let Err(err) = finalize_recording(db, config, schedule, &id, &filename, &output_path).await {
+        tracing::error!(schedule_id = %schedule.id, "Finalization failed but recording was captured: {err:#}");
+        set_schedule_status(db, &schedule.id, "completed").await?;
+    }
+    Ok(())
 }

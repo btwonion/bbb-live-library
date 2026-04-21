@@ -43,7 +43,7 @@ fn display_number_for_schedule(schedule_id: &str) -> u32 {
     99 + (hasher.finish() % 100) as u32
 }
 
-/// Computes recording duration in seconds from schedule start/end times.
+/// Computes recording duration in seconds from schedule start/end times, including offsets.
 fn compute_duration_secs(schedule: &Schedule) -> Option<i64> {
     schedule.end_time.as_ref().and_then(|end_time| {
         let start =
@@ -51,7 +51,7 @@ fn compute_duration_secs(schedule: &Schedule) -> Option<i64> {
                 .ok()?;
         let end =
             chrono::NaiveDateTime::parse_from_str(end_time, "%Y-%m-%d %H:%M:%S").ok()?;
-        let secs = (end - start).num_seconds();
+        let secs = (end - start).num_seconds() + schedule.start_offset_secs + schedule.end_offset_secs;
         if secs > 0 {
             Some(secs)
         } else {
@@ -282,5 +282,10 @@ async fn run_browser_recording(
     result?;
 
     // --- Step 7: Finalize ---
-    finalize_recording(db, config, schedule, &id, &filename, &output_path).await
+    // If finalization fails (e.g. ffprobe, thumbnail), still mark as completed since the file exists
+    if let Err(err) = finalize_recording(db, config, schedule, &id, &filename, &output_path).await {
+        tracing::error!(schedule_id = %schedule.id, "Finalization failed but recording was captured: {err:#}");
+        set_schedule_status(db, &schedule.id, "completed").await?;
+    }
+    Ok(())
 }

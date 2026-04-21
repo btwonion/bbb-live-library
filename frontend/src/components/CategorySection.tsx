@@ -29,6 +29,7 @@ export function CategorySection({
   const { data, isLoading } = useQuery({
     queryKey: ["recordings", { category_id: category.id, per_page: 4 }],
     queryFn: () => listRecordings({ category_id: category.id, per_page: 4 }),
+    staleTime: 0,
   });
 
   const recordings = data?.data ?? [];

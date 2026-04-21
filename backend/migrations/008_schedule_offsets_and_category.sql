@@ -1,0 +1,3 @@
+ALTER TABLE schedules ADD COLUMN start_offset_secs INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE schedules ADD COLUMN end_offset_secs INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE schedules ADD COLUMN category_id TEXT REFERENCES categories(id) ON DELETE SET NULL;

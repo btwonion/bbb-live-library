@@ -102,6 +102,16 @@ pub async fn finalize_recording(
     .await
     .context("Failed to insert recording into database")?;
 
+    // Auto-assign category if configured on the schedule
+    if let Some(ref cat_id) = schedule.category_id {
+        sqlx::query("INSERT INTO recording_categories (recording_id, category_id) VALUES (?1, ?2)")
+            .bind(id)
+            .bind(cat_id)
+            .execute(db)
+            .await
+            .context("Failed to auto-assign category to recording")?;
+    }
+
     // Mark schedule completed
     set_schedule_status(db, &schedule.id, "completed").await?;
 

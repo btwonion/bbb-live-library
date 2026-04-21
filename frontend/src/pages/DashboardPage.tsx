@@ -16,7 +16,6 @@ import { StatsCard } from "@/components/StatsCard";
 import { RecordingCard } from "@/components/RecordingCard";
 import { ScheduleCard } from "@/components/ScheduleCard";
 
-function noop() {}
 
 export default function DashboardPage() {
   useDocumentTitle("Dashboard");
@@ -139,8 +138,6 @@ export default function DashboardPage() {
                 <ScheduleCard
                   key={schedule.id}
                   schedule={schedule}
-                  onEdit={noop}
-                  onDelete={noop}
                 />
               ))}
             </div>

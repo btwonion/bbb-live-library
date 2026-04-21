@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { HelpCircle } from "lucide-react";
+import { listCategories } from "@/api/categories";
 import { createSchedule, updateSchedule } from "@/api/schedules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { useTimezone } from "@/hooks/useTimezone";
 import type { Schedule, CreateScheduleRequest, UpdateScheduleRequest } from "@/api/types";
 
 interface ScheduleFormProps {
@@ -33,9 +35,33 @@ interface FormFieldsProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** Formats a Date as a naive "YYYY-MM-DD HH:MM:SS" string in the given IANA timezone. */
+function formatNaive(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
+/** Parses a naive UTC datetime string from the backend into a Date for the DateTimePicker. */
+function parseUtcNaive(utcStr: string): Date {
+  const normalized = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T") + "Z";
+  return new Date(normalized);
+}
+
 function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
   const isEdit = !!schedule;
   const queryClient = useQueryClient();
+  const timezone = useTimezone();
 
   const [title, setTitle] = useState(schedule?.title ?? "");
   const [recordingType, setRecordingType] = useState<"rtmp" | "room">(
@@ -45,12 +71,20 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
   const [roomUrl, setRoomUrl] = useState(schedule?.room_url ?? "");
   const [botName, setBotName] = useState(schedule?.bot_name ?? "");
   const [startTime, setStartTime] = useState<Date | undefined>(
-    schedule ? new Date(schedule.start_time) : undefined,
+    schedule ? parseUtcNaive(schedule.start_time) : undefined,
   );
   const [endTime, setEndTime] = useState<Date | undefined>(
-    schedule?.end_time ? new Date(schedule.end_time) : undefined,
+    schedule?.end_time ? parseUtcNaive(schedule.end_time) : undefined,
   );
   const [recurrence, setRecurrence] = useState(schedule?.recurrence ?? "");
+  const [startOffset, setStartOffset] = useState(schedule?.start_offset_secs ?? 30);
+  const [endOffset, setEndOffset] = useState(schedule?.end_offset_secs ?? 30);
+  const [categoryId, setCategoryId] = useState(schedule?.category_id ?? "");
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateScheduleRequest) => createSchedule(data),
@@ -86,9 +120,12 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
       stream_url: recordingType === "rtmp" ? streamUrl : "",
       room_url: recordingType === "room" ? roomUrl : "",
       bot_name: recordingType === "room" ? botName || undefined : undefined,
-      start_time: startTime.toISOString(),
-      end_time: endTime ? endTime.toISOString() : undefined,
+      start_time: formatNaive(startTime, timezone),
+      end_time: endTime ? formatNaive(endTime, timezone) : undefined,
       recurrence: recurrence || undefined,
+      start_offset_secs: startOffset,
+      end_offset_secs: endOffset,
+      category_id: categoryId || (isEdit ? null : undefined),
     };
 
     if (isEdit) {
@@ -208,6 +245,33 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label htmlFor="sf-start-offset" className="text-xs font-medium">
+            Start Offset (seconds)
+          </label>
+          <Input
+            id="sf-start-offset"
+            type="number"
+            min={0}
+            value={startOffset}
+            onChange={(e) => setStartOffset(Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="sf-end-offset" className="text-xs font-medium">
+            End Offset (seconds)
+          </label>
+          <Input
+            id="sf-end-offset"
+            type="number"
+            min={0}
+            value={endOffset}
+            onChange={(e) => setEndOffset(Number(e.target.value))}
+          />
+        </div>
+      </div>
+
       <div className="space-y-1">
         <label htmlFor="sf-recurrence" className="text-xs font-medium">
           Recurrence
@@ -218,6 +282,25 @@ function FormFields({ schedule, onOpenChange }: FormFieldsProps) {
           onChange={(e) => setRecurrence(e.target.value)}
           placeholder="Cron expression (e.g. 0 9 * * MON)"
         />
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="sf-category" className="text-xs font-medium">
+          Auto-assign Category
+        </label>
+        <select
+          id="sf-category"
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="">None</option>
+          {categories?.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && (

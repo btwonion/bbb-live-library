@@ -3,6 +3,7 @@ mod import;
 mod playback;
 mod recordings;
 mod schedules;
+mod settings;
 mod stats;
 
 use axum::Router;
@@ -42,4 +43,5 @@ pub fn router() -> Router<AppState> {
         .merge(import::router())
         .merge(playback::router())
         .merge(schedules::router())
+        .merge(settings::router())
 }

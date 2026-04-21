@@ -1,12 +1,16 @@
-import { Calendar, Clock, Edit2, Link, Repeat, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { Calendar, Clock, Edit2, FolderOpen, Link, Repeat, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { listCategories } from "@/api/categories";
+import { useTimezone } from "@/hooks/useTimezone";
 import type { Schedule } from "@/api/types";
 
 interface ScheduleCardProps {
   schedule: Schedule;
-  onEdit: (schedule: Schedule) => void;
-  onDelete: (schedule: Schedule) => void;
+  onEdit?: (schedule: Schedule) => void;
+  onDelete?: (schedule: Schedule) => void;
 }
 
 function statusBadge(status: string) {
@@ -27,10 +31,14 @@ function statusBadge(status: string) {
   }
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+function formatDateTime(utcStr: string, timezone: string) {
+  // Backend stores times as naive UTC strings ("YYYY-MM-DD HH:MM:SS").
+  // Append "Z" to parse as UTC, then display in the configured timezone.
+  const normalized = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T") + "Z";
+  return new Date(normalized).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: timezone,
   });
 }
 
@@ -40,6 +48,13 @@ function truncate(str: string, maxLength: number) {
 
 export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) {
   const isRecording = schedule.status === "recording";
+  const timezone = useTimezone();
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+    enabled: !!schedule.category_id,
+  });
+  const category = categories?.find((c) => c.id === schedule.category_id);
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
@@ -59,12 +74,12 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
           </span>
           <span className="inline-flex items-center gap-1">
             <Calendar className="size-3" />
-            {formatDateTime(schedule.start_time)}
+            {formatDateTime(schedule.start_time, timezone)}
           </span>
           {schedule.end_time && (
             <span className="inline-flex items-center gap-1">
               <Clock className="size-3" />
-              Until {formatDateTime(schedule.end_time)}
+              Until {formatDateTime(schedule.end_time, timezone)}
             </span>
           )}
           {schedule.recurrence && (
@@ -73,27 +88,42 @@ export function ScheduleCard({ schedule, onEdit, onDelete }: ScheduleCardProps) 
               {schedule.recurrence}
             </span>
           )}
+          {category && (
+            <RouterLink
+              to={`/recordings?category_id=${category.id}`}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <FolderOpen className="size-3" />
+              {category.name}
+            </RouterLink>
+          )}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => onEdit(schedule)}
-        >
-          <Edit2 className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => onDelete(schedule)}
-          disabled={isRecording}
-          title={isRecording ? "Cannot delete while recording" : "Delete schedule"}
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      </div>
+      {(onEdit || onDelete) && (
+        <div className="flex shrink-0 items-center gap-1">
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onEdit(schedule)}
+            >
+              <Edit2 className="size-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onDelete(schedule)}
+              disabled={isRecording}
+              title={isRecording ? "Cannot delete while recording" : "Delete schedule"}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -14,12 +13,73 @@ interface DateTimePickerProps {
   placeholder?: string;
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+function TimeColumn({
+  values,
+  selected,
+  onSelect,
+}: {
+  values: number[];
+  selected: number;
+  onSelect: (v: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({
+        block: "center",
+        behavior: "instant",
+      });
+    }
+  }, [selected]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-16 overflow-y-auto scrollbar-thin"
+    >
+      <div>
+        {values.map((v) => (
+          <button
+            key={v}
+            ref={v === selected ? selectedRef : undefined}
+            type="button"
+            onClick={() => onSelect(v)}
+            className={cn(
+              "flex h-8 w-full items-center justify-center rounded-md text-sm transition-colors",
+              "hover:bg-muted",
+              v === selected &&
+                "bg-primary text-primary-foreground font-medium hover:bg-primary/90",
+            )}
+          >
+            {String(v).padStart(2, "0")}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function DateTimePicker({
   value,
   onChange,
   placeholder = "Pick date & time",
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
+  const [fallbackDate, setFallbackDate] = useState<Date>(() => new Date());
+
+  const displayDate = value ?? fallbackDate;
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen && !value) {
+      setFallbackDate(new Date());
+    }
+    setOpen(nextOpen);
+  }
 
   function handleDateSelect(day: Date | undefined) {
     if (!day) {
@@ -27,28 +87,26 @@ export function DateTimePicker({
       return;
     }
     const next = new Date(day);
-    if (value) {
-      next.setHours(value.getHours(), value.getMinutes());
-    }
+    const timeSource = value ?? displayDate;
+    next.setHours(timeSource.getHours(), timeSource.getMinutes());
     onChange(next);
   }
 
-  function handleTimeChange(field: "hours" | "minutes", raw: string) {
-    const num = parseInt(raw, 10);
-    if (isNaN(num)) return;
-    const base = value ? new Date(value) : new Date();
-    if (field === "hours" && num >= 0 && num <= 23) {
+  function handleTimeChange(field: "hours" | "minutes", num: number) {
+    const base = value ? new Date(value) : new Date(displayDate);
+    if (field === "hours") {
       base.setHours(num);
-    } else if (field === "minutes" && num >= 0 && num <= 59) {
-      base.setMinutes(num);
     } else {
-      return;
+      base.setMinutes(num);
     }
     onChange(base);
   }
 
+  const displayHours = (value ?? displayDate).getHours();
+  const displayMinutes = (value ?? displayDate).getMinutes();
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
           <Button
@@ -64,32 +122,27 @@ export function DateTimePicker({
         {value ? format(value, "MMM d, yyyy HH:mm") : placeholder}
       </PopoverTrigger>
       <PopoverContent align="start" className="z-[60] w-auto p-0">
-        <Calendar
-          mode="single"
-          selected={value}
-          onSelect={handleDateSelect}
-        />
-        <Separator />
-        <div className="flex items-center gap-2 px-3 py-2">
-          <Input
-            type="number"
-            min={0}
-            max={23}
-            value={value ? String(value.getHours()).padStart(2, "0") : ""}
-            onChange={(e) => handleTimeChange("hours", e.target.value)}
-            className="h-8 w-16 text-center"
-            placeholder="HH"
+        <div className="flex">
+          <Calendar
+            mode="single"
+            selected={value}
+            defaultMonth={displayDate}
+            onSelect={handleDateSelect}
           />
-          <span className="text-sm text-muted-foreground">:</span>
-          <Input
-            type="number"
-            min={0}
-            max={59}
-            value={value ? String(value.getMinutes()).padStart(2, "0") : ""}
-            onChange={(e) => handleTimeChange("minutes", e.target.value)}
-            className="h-8 w-16 text-center"
-            placeholder="MM"
-          />
+          <Separator orientation="vertical" />
+          <div className="flex max-h-[300px]">
+            <TimeColumn
+              values={HOURS}
+              selected={displayHours}
+              onSelect={(h) => handleTimeChange("hours", h)}
+            />
+            <Separator orientation="vertical" />
+            <TimeColumn
+              values={MINUTES}
+              selected={displayMinutes}
+              onSelect={(m) => handleTimeChange("minutes", m)}
+            />
+          </div>
         </div>
       </PopoverContent>
     </Popover>

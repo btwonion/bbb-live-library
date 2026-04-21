@@ -38,6 +38,9 @@ export interface Schedule {
   room_url: string;
   bot_name: string;
   status: string;
+  start_offset_secs: number;
+  end_offset_secs: number;
+  category_id: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -81,6 +84,9 @@ export interface CreateScheduleRequest {
   recurrence?: string;
   room_url?: string;
   bot_name?: string;
+  start_offset_secs?: number;
+  end_offset_secs?: number;
+  category_id?: string;
 }
 
 export interface UpdateScheduleRequest {
@@ -92,6 +98,15 @@ export interface UpdateScheduleRequest {
   enabled?: boolean;
   room_url?: string;
   bot_name?: string;
+  start_offset_secs?: number;
+  end_offset_secs?: number;
+  category_id?: string | null;
+}
+
+export interface ScheduleListParams {
+  page?: number;
+  per_page?: number;
+  filter?: "active" | "past";
 }
 
 export interface CreateCategoryRequest {
