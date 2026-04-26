@@ -207,7 +207,7 @@ This is a personal project, not a multi-tenant product:
 
 ## License
 
-GPL-3.0. See `LICENSE` (to be added) for the full text.
+GPL-3.0. See `LICENSE` for the full text.
 
 ---
 
